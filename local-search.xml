@@ -16,5 +16,34 @@
   
   
   
+  <entry>
+    <title>我的第一篇 Hexo 博客</title>
+    <link href="/2025/01/01/%E6%88%91%E7%9A%84%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E5%AE%A2%E6%96%87%E7%AB%A0/"/>
+    <url>/2025/01/01/%E6%88%91%E7%9A%84%E7%AC%AC%E4%B8%80%E7%AF%87%E5%8D%9A%E5%AE%A2%E6%96%87%E7%AB%A0/</url>
+    
+    <content type="html"><![CDATA[<h1 id="🎉-欢迎来到我的博客！"><a href="#🎉-欢迎来到我的博客！" class="headerlink" title="🎉 欢迎来到我的博客！"></a>🎉 欢迎来到我的博客！</h1><p>这是我使用 <strong>Hexo + Fluid + GitHub Pages</strong> 搭建的第一篇文章。<br>本文用于测试排版、代码高亮、图片、引用、表格、评论等内容是否显示正常。</p><hr><h2 id="✨-一级标题示例"><a href="#✨-一级标题示例" class="headerlink" title="✨ 一级标题示例"></a>✨ 一级标题示例</h2><p>这里是段落示例。</p><h2 id="二级标题示例"><a href="#二级标题示例" class="headerlink" title="二级标题示例"></a>二级标题示例</h2><h3 id="三级标题示例"><a href="#三级标题示例" class="headerlink" title="三级标题示例"></a>三级标题示例</h3><hr><h1 id="💻-代码高亮示例"><a href="#💻-代码高亮示例" class="headerlink" title="💻 代码高亮示例"></a>💻 代码高亮示例</h1><p>下面是 C 语言代码块展示效果：</p><pre><code class="language-c">#include &lt;stdio.h&gt;int main() {    printf(&quot;Hello Hexo + Fluid!\n&quot;);    return 0;}</code></pre>]]></content>
+    
+    
+    <categories>
+      
+      <category>技术分享</category>
+      
+    </categories>
+    
+    
+    <tags>
+      
+      <tag>Hexo</tag>
+      
+      <tag>Linux</tag>
+      
+      <tag>GitHub Pages</tag>
+      
+    </tags>
+    
+  </entry>
+  
+  
+  
   
 </search>
