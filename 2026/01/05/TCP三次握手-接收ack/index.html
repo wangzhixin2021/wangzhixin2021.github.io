@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: dark)"><meta name="generator" content="Hexo 8.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":true,"version":"8.26.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"base16/onedark","dark":"base16/onedark"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":"mac"},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"/search.json","localsearch":{"enable":true,"top_n_per_article":1,"unescape":false,"preload":true,"highlight":true}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="客户端回复第三次握手包(ack)后，服务端是如何处理ack包的呢？主要介绍下这块。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="TCP三次握手-接收ack">
+<meta property="og:url" content="http://example.com/2026/01/05/TCP%E4%B8%89%E6%AC%A1%E6%8F%A1%E6%89%8B-%E6%8E%A5%E6%94%B6ack/index.html">
+<meta property="og:site_name" content="积硅步，至千里">
+<meta property="og:description" content="客户端回复第三次握手包(ack)后，服务端是如何处理ack包的呢？主要介绍下这块。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-01-05T14:44:53.000Z">
+<meta property="article:modified_time" content="2026-01-05T14:58:07.697Z">
+<meta property="article:author" content="wangzhixin">
+<meta property="article:tag" content="socket">
+<meta property="article:tag" content="tcp建连">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2026/01/05/TCP%E4%B8%89%E6%AC%A1%E6%8F%A1%E6%89%8B-%E6%8E%A5%E6%94%B6ack/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://example.com/2026/01/05/TCP%E4%B8%89%E6%AC%A1%E6%8F%A1%E6%89%8B-%E6%8E%A5%E6%94%B6ack/","path":"2026/01/05/TCP三次握手-接收ack/","title":"TCP三次握手-接收ack"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>TCP三次握手-接收ack | 积硅步，至千里</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/motion.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hexo-generator-searchdb/1.5.0/search.js" integrity="sha256-xFC6PJ82SL9b3WkGjFavNiA9gm5z6UBxWPiu4CYjptg=" crossorigin="anonymous" defer></script>
+<script src="/js/third-party/search/local-search.js" defer></script>
+
+
+
+
+
+
+
+  
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">积硅步，至千里</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+      <div class="search-header">
+        <span class="search-icon">
+          <i class="fa fa-search"></i>
+        </span>
+        <div class="search-input-container">
+          <input autocomplete="off" autocapitalize="off" maxlength="80"
+                placeholder="搜索..." spellcheck="false"
+                type="search" class="search-input">
+        </div>
+        <span class="popup-btn-close" role="button">
+          <i class="fa fa-times-circle"></i>
+        </span>
+      </div>
+      <div class="search-result-container">
+        <div class="search-result-icon">
+          <i class="fa fa-spinner fa-pulse fa-5x"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-overview-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">wangzhixin</p>
+  <div class="site-description" itemprop="description">Linux C/C++</div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">12</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2026/01/05/TCP%E4%B8%89%E6%AC%A1%E6%8F%A1%E6%89%8B-%E6%8E%A5%E6%94%B6ack/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="wangzhixin">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="积硅步，至千里">
+      <meta itemprop="description" content="Linux C/C++">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="TCP三次握手-接收ack | 积硅步，至千里">
+      <meta itemprop="description" content="客户端回复第三次握手包(ack)后，服务端是如何处理ack包的呢？主要介绍下这块。">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          TCP三次握手-接收ack
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+      
+
+      <time title="创建时间：2026-01-05 22:44:53 / 修改时间：22:58:07" itemprop="dateCreated datePublished" datetime="2026-01-05T22:44:53+08:00">2026-01-05</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/linux6-6%E5%86%85%E6%A0%B8/" itemprop="url" rel="index"><span itemprop="name">linux6.6内核</span></a>
+        </span>
+    </span>
+
+  
+    <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv">
+      <span class="post-meta-item-icon">
+        <i class="far fa-eye"></i>
+      </span>
+      <span class="post-meta-item-text">阅读次数：</span>
+      <span id="busuanzi_value_page_pv"></span>
+    </span>
+</div>
+
+            <div class="post-description">客户端回复第三次握手包(ack)后，服务端是如何处理ack包的呢？主要介绍下这块。</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>我们知道，所有的ipv4的tcp包，进入tcp层的入口点，就是<strong>tcp_v4_rcv</strong>，客户端、服务端均是如此。所以第三次握手包，服务端一定是在<strong>tcp_v4_rcv</strong>中，收到ack包的，<strong>__inet_lookup_skb</strong>查找到的就是ehash中的req sock。并且此时的sk处于<strong>TCP_NEW_SYN_RECV</strong>状态。我们可以看到，在判断完sk_state是<strong>TCP_NEW_SYN_RECV</strong>状态后，立刻就将查找到的sk，转换为了request_sock，并且将sk更新为了request_sock关联的listen sock。<br>然后做ipsec相关检查。做校验和计算。然后判断listen sock是否还是<strong>TCP_LISTEN</strong>状态(因为有可能关闭了)，如果关闭了，调用<strong>reuseport_migrate_sock</strong>查看是否能找到一个合适的sk迁移。<br>过lsm bpf钩子点。如果钩子点放行了，调用<strong>tcp_check_req</strong>，创建child sock，这个就是用来跟对端通信的sock。如果创建失败了，则表示收到的报文大概率不合法，默默丢弃。如果创建成功了，复位连接跟踪相关。<br>紧接着调用<strong>tcp_child_process</strong>完成对第三次握手包的处理。如果失败了，回rst包。如果成功了，则return结束。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">tcp_v4_rcv</span><span class="params">(<span class="keyword">struct</span> sk_buff *skb)</span></span><br><span class="line">&#123;</span><br><span class="line">	...</span><br><span class="line"></span><br><span class="line">lookup:</span><br><span class="line">	<span class="comment">/* 查找该数据包所属的sk</span></span><br><span class="line"><span class="comment">	 * 可能返回established sk，也可能是listen sk，也可能是NULL </span></span><br><span class="line"><span class="comment">	 * 对于服务端来说，第一次握手包找到的是listen sk，客户端的ack(三次握手包)后查找到的应该是established sk</span></span><br><span class="line"><span class="comment">	 * 返回NULL 代表没有TCP监听该端口，所以要给对端发reset包 */</span></span><br><span class="line">	sk = __inet_lookup_skb(net-&gt;ipv4.tcp_death_row.hashinfo,</span><br><span class="line">			       skb, __tcp_hdrlen(th), th-&gt;source,</span><br><span class="line">			       th-&gt;dest, sdif, &amp;refcounted);</span><br><span class="line">	<span class="keyword">if</span> (!sk)</span><br><span class="line">		<span class="keyword">goto</span> no_tcp_socket;</span><br><span class="line"></span><br><span class="line">	...</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 如果是正常的三次握手，服务端收到客户端的ack包(第三次握手包)后，会走进这个分支 */</span></span><br><span class="line">	<span class="keyword">if</span> (sk-&gt;sk_state == TCP_NEW_SYN_RECV) &#123;</span><br><span class="line">		<span class="comment">/* 处于这种状态的sk，属于半连接状态的sk，request_sock，不完全的sk */</span></span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">request_sock</span> *<span class="title">req</span> =</span> inet_reqsk(sk);</span><br><span class="line">		<span class="type">bool</span> req_stolen = <span class="literal">false</span>;</span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">sock</span> *<span class="title">nsk</span>;</span></span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 从这个不完全sk上面，获取其相关的监听套接字 */</span></span><br><span class="line">		sk = req-&gt;rsk_listener;</span><br><span class="line">		</span><br><span class="line">		<span class="comment">/* ipsec相关 */</span></span><br><span class="line">		<span class="keyword">if</span> (!xfrm4_policy_check(sk, XFRM_POLICY_IN, skb))</span><br><span class="line">			drop_reason = SKB_DROP_REASON_XFRM_POLICY;</span><br><span class="line">		<span class="keyword">else</span></span><br><span class="line">			drop_reason = tcp_inbound_md5_hash(sk, skb,</span><br><span class="line">						   &amp;iph-&gt;saddr, &amp;iph-&gt;daddr,</span><br><span class="line">						   AF_INET, dif, sdif);</span><br><span class="line">		<span class="keyword">if</span> (unlikely(drop_reason)) &#123;</span><br><span class="line">			sk_drops_add(sk, skb);</span><br><span class="line">			reqsk_put(req);</span><br><span class="line">			<span class="keyword">goto</span> discard_it;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 计算校验和，如果这里硬件计算过了，软件就不算了 */</span></span><br><span class="line">		<span class="keyword">if</span> (tcp_checksum_complete(skb)) &#123;</span><br><span class="line">			reqsk_put(req);</span><br><span class="line">			<span class="keyword">goto</span> csum_error;</span><br><span class="line">		&#125;</span><br><span class="line">		</span><br><span class="line">		<span class="comment">/* 查看 req sk 所关联的 listen sk，还是不是listen状态，看它是否close了 */</span></span><br><span class="line">		<span class="keyword">if</span> (unlikely(sk-&gt;sk_state != TCP_LISTEN)) &#123;</span><br><span class="line">			<span class="comment">/* 如果启用了端口重用，看看能不找到一个可以替代的sk，然后继续，否则goto要重新查找一下</span></span><br><span class="line"><span class="comment">			 * 这里如果再找一遍没找到是不是就直接rst了？？？*/</span></span><br><span class="line">			nsk = reuseport_migrate_sock(sk, req_to_sk(req), skb);</span><br><span class="line">			<span class="keyword">if</span> (!nsk) &#123;</span><br><span class="line">				inet_csk_reqsk_queue_drop_and_put(sk, req);</span><br><span class="line">				<span class="keyword">goto</span> lookup;</span><br><span class="line">			&#125;</span><br><span class="line"></span><br><span class="line">			<span class="comment">/* 这里是找到了可以迁移的sock */</span></span><br><span class="line">			sk = nsk;</span><br><span class="line">			<span class="comment">/* reuseport_migrate_sock() has already held one sk_refcnt</span></span><br><span class="line"><span class="comment">			 * before returning.</span></span><br><span class="line"><span class="comment">			 */</span></span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			<span class="comment">/* We own a reference on the listener, increase it again</span></span><br><span class="line"><span class="comment">			 * as we might lose it too soon.</span></span><br><span class="line"><span class="comment">			 */</span></span><br><span class="line">			sock_hold(sk);</span><br><span class="line">		&#125;</span><br><span class="line">		refcounted = <span class="literal">true</span>;</span><br><span class="line">		nsk = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* lsm 及 bpf 相关的过滤钩子，返回0表示接收，非0 drop数据包 */</span></span><br><span class="line">		<span class="keyword">if</span> (!tcp_filter(sk, skb)) &#123;</span><br><span class="line">			th = (<span class="type">const</span> <span class="keyword">struct</span> tcphdr *)skb-&gt;data;</span><br><span class="line">			iph = ip_hdr(skb);</span><br><span class="line">			<span class="comment">/* 根据数据包字段填充私有控制结构 */</span></span><br><span class="line">			tcp_v4_fill_cb(skb, iph, th);</span><br><span class="line">			<span class="comment">/* 创建新的sock，这里可能返回监听sk，或者空，或者新的sock */</span></span><br><span class="line">			nsk = tcp_check_req(sk, skb, req, <span class="literal">false</span>, &amp;req_stolen);</span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			drop_reason = SKB_DROP_REASON_SOCKET_FILTER;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 如果返回空则表示收到的报文可能不合法，大概率默默丢弃了 */</span></span><br><span class="line">		<span class="keyword">if</span> (!nsk) &#123;</span><br><span class="line">			reqsk_put(req);</span><br><span class="line">			<span class="keyword">if</span> (req_stolen) &#123;</span><br><span class="line">				<span class="comment">/* Another cpu got exclusive access to req</span></span><br><span class="line"><span class="comment">				 * and created a full blown socket.</span></span><br><span class="line"><span class="comment">				 * Try to feed this packet to this socket</span></span><br><span class="line"><span class="comment">				 * instead of discarding it.</span></span><br><span class="line"><span class="comment">				 */</span></span><br><span class="line">				tcp_v4_restore_cb(skb);</span><br><span class="line">				sock_put(sk);</span><br><span class="line">				<span class="keyword">goto</span> lookup;</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="keyword">goto</span> discard_and_relse;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 连接跟踪相关复位 */</span></span><br><span class="line">		nf_reset_ct(skb);</span><br><span class="line">		<span class="keyword">if</span> (nsk == sk) &#123;</span><br><span class="line">			reqsk_put(req);</span><br><span class="line">			tcp_v4_restore_cb(skb);</span><br><span class="line">		&#125; <span class="keyword">else</span> <span class="keyword">if</span> (tcp_child_process(sk, nsk, skb)) &#123; 	<span class="comment">/* 正常情况下走这个流程并返回0，失败了要发reset包 */</span></span><br><span class="line">			tcp_v4_send_reset(nsk, skb);</span><br><span class="line">			<span class="keyword">goto</span> discard_and_relse;</span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			sock_put(sk);</span><br><span class="line">			<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/socket/" rel="tag"># socket</a>
+              <a href="/tags/%E7%BD%91%E7%BB%9C/" rel="tag"># 网络</a>
+              <a href="/tags/tcp%E5%BB%BA%E8%BF%9E/" rel="tag"># tcp建连</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/01/01/TCP%E4%B8%89%E6%AC%A1%E6%8F%A1%E6%89%8B-%E6%8E%A5%E6%94%B6synack/" rel="prev" title="TCP三次握手-接收synack">
+                  <i class="fa fa-angle-left"></i> TCP三次握手-接收synack
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2025 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">wangzhixin</span>
+  </div>
+<div class="busuanzi-count">
+    <span class="post-meta-item" id="busuanzi_container_site_uv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
