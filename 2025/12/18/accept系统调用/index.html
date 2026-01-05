@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: dark)"><meta name="generator" content="Hexo 8.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":true,"version":"8.26.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"base16/onedark","dark":"base16/onedark"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":"mac"},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"/search.json","localsearch":{"enable":true,"top_n_per_article":1,"unescape":false,"preload":true,"highlight":true}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="我们在写网络编程时，经常使用accept函数，而accept函数内部的实现原理究竟为何？到底做了哪些事情呢？本篇主要聚焦介绍此问题。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="accept系统调用">
+<meta property="og:url" content="http://example.com/2025/12/18/accept%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/index.html">
+<meta property="og:site_name" content="积硅步，至千里">
+<meta property="og:description" content="我们在写网络编程时，经常使用accept函数，而accept函数内部的实现原理究竟为何？到底做了哪些事情呢？本篇主要聚焦介绍此问题。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2025-12-18T14:52:49.000Z">
+<meta property="article:modified_time" content="2026-01-05T14:36:34.204Z">
+<meta property="article:author" content="wangzhixin">
+<meta property="article:tag" content="accept">
+<meta property="article:tag" content="socket">
+<meta property="article:tag" content="tcp建连">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2025/12/18/accept%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://example.com/2025/12/18/accept%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/","path":"2025/12/18/accept系统调用/","title":"accept系统调用"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>accept系统调用 | 积硅步，至千里</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/motion.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hexo-generator-searchdb/1.5.0/search.js" integrity="sha256-xFC6PJ82SL9b3WkGjFavNiA9gm5z6UBxWPiu4CYjptg=" crossorigin="anonymous" defer></script>
+<script src="/js/third-party/search/local-search.js" defer></script>
+
+
+
+
+
+
+
+  
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">积硅步，至千里</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+      <div class="search-header">
+        <span class="search-icon">
+          <i class="fa fa-search"></i>
+        </span>
+        <div class="search-input-container">
+          <input autocomplete="off" autocapitalize="off" maxlength="80"
+                placeholder="搜索..." spellcheck="false"
+                type="search" class="search-input">
+        </div>
+        <span class="popup-btn-close" role="button">
+          <i class="fa fa-times-circle"></i>
+        </span>
+      </div>
+      <div class="search-result-container">
+        <div class="search-result-icon">
+          <i class="fa fa-spinner fa-pulse fa-5x"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#glibc-accept%E5%87%BD%E6%95%B0%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">glibc accept函数介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#accept%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8"><span class="nav-number">2.</span> <span class="nav-text">accept系统调用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">wangzhixin</p>
+  <div class="site-description" itemprop="description">Linux C/C++</div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">12</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2025/12/18/accept%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="wangzhixin">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="积硅步，至千里">
+      <meta itemprop="description" content="Linux C/C++">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="accept系统调用 | 积硅步，至千里">
+      <meta itemprop="description" content="我们在写网络编程时，经常使用accept函数，而accept函数内部的实现原理究竟为何？到底做了哪些事情呢？本篇主要聚焦介绍此问题。">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          accept系统调用
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2025-12-18 22:52:49" itemprop="dateCreated datePublished" datetime="2025-12-18T22:52:49+08:00">2025-12-18</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">更新于</span>
+      <time title="修改时间：2026-01-05 22:36:34" itemprop="dateModified" datetime="2026-01-05T22:36:34+08:00">2026-01-05</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/linux6-6%E5%86%85%E6%A0%B8/" itemprop="url" rel="index"><span itemprop="name">linux6.6内核</span></a>
+        </span>
+    </span>
+
+  
+    <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv">
+      <span class="post-meta-item-icon">
+        <i class="far fa-eye"></i>
+      </span>
+      <span class="post-meta-item-text">阅读次数：</span>
+      <span id="busuanzi_value_page_pv"></span>
+    </span>
+</div>
+
+            <div class="post-description">我们在写网络编程时，经常使用accept函数，而accept函数内部的实现原理究竟为何？到底做了哪些事情呢？本篇主要聚焦介绍此问题。</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h2 id="glibc-accept函数介绍"><a href="#glibc-accept函数介绍" class="headerlink" title="glibc accept函数介绍"></a>glibc accept函数介绍</h2><p>我们使用的accept函数，原型如下。<br>代码位置为：&#x2F;usr&#x2F;include&#x2F;x86_64-linux-gnu&#x2F;sys&#x2F;socket.h</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">extern</span> <span class="type">int</span> <span class="title function_">accept</span> <span class="params">(<span class="type">int</span> __fd, __SOCKADDR_ARG __addr,</span></span><br><span class="line"><span class="params">                   <span class="type">socklen_t</span> *__restrict __addr_len)</span>;</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>介绍</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>__fd</td>
+<td>socket返回的fd</td>
+</tr>
+<tr>
+<td>__addr</td>
+<td>返回的client fd对应的对端的地址信息</td>
+</tr>
+<tr>
+<td>__addr_len</td>
+<td>返回的client fd对应的对端的地址信息结构的大小</td>
+</tr>
+</tbody></table>
+<hr>
+<p>而accept函数是glibc中提供的函数，我们看下glibc中的accept函数实现。<br>代码位置在：glibc-2.41&#x2F;sysdeps&#x2F;unix&#x2F;sysv&#x2F;linux&#x2F;accept.c</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/socket.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sysdep-cancel.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;socketcall.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">int</span></span><br><span class="line">__libc_accept (<span class="type">int</span> fd, __SOCKADDR_ARG addr, <span class="type">socklen_t</span> *len)</span><br><span class="line">&#123;</span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> __ASSUME_ACCEPT_SYSCALL</span></span><br><span class="line">  <span class="keyword">return</span> SYSCALL_CANCEL (accept, fd, addr.__sockaddr__, len);</span><br><span class="line"><span class="meta">#<span class="keyword">elif</span> defined __ASSUME_ACCEPT4_SYSCALL</span></span><br><span class="line">  <span class="keyword">return</span> SYSCALL_CANCEL (accept4, fd, addr.__sockaddr__, len, <span class="number">0</span>);</span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line">  <span class="keyword">return</span> SOCKETCALL_CANCEL (accept, fd, addr.__sockaddr__, len);</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">&#125;</span><br><span class="line">weak_alias (__libc_accept, accept)</span><br><span class="line">libc_hidden_def (accept)</span><br></pre></td></tr></table></figure>
+
+<p>glibc中的accept函数也几乎什么都没做，可以理解为仅仅是内核accept系统调用(__do_sys_accept)的一个封装。</p>
+<h2 id="accept系统调用"><a href="#accept系统调用" class="headerlink" title="accept系统调用"></a>accept系统调用</h2><p>我们首先来看下accept系统调用的入口。可以看到__do_sys_accept，什么都没做，只是再次调用了__sys_accept4。<br>__do_sys_accept4 与 __do_sys_accept 的区别在于 flags 参数，__do_sys_accept4 允许 对这个 accept 额外再设置 NONBLOCK 或者是 CLOEXEC。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* __do_sys_accept4，</span></span><br><span class="line"><span class="comment"> * __do_sys_accept4 与 __do_sys_accept 的区别在于 flags 参数，</span></span><br><span class="line"><span class="comment"> * __do_sys_accept4 允许 对这个 accept client fd 设置 NONBLOCK 或者是 CLOEXEC */</span></span><br><span class="line">SYSCALL_DEFINE4(accept4, <span class="type">int</span>, fd, <span class="keyword">struct</span> sockaddr __user *, upeer_sockaddr,</span><br><span class="line">		<span class="type">int</span> __user *, upeer_addrlen, <span class="type">int</span>, flags)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> __sys_accept4(fd, upeer_sockaddr, upeer_addrlen, flags);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* __do_sys_accept */</span></span><br><span class="line">SYSCALL_DEFINE3(accept, <span class="type">int</span>, fd, <span class="keyword">struct</span> sockaddr __user *, upeer_sockaddr,</span><br><span class="line">		<span class="type">int</span> __user *, upeer_addrlen)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> __sys_accept4(fd, upeer_sockaddr, upeer_addrlen, <span class="number">0</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>在__sys_accept4中，首先通过fd找到file，然后调用__sys_accept4_file，成功的话，ret就是newfd，否则就是错误码。因为调用的fdget，最后还有使用fdput减下引用计数。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*  由 __do_sys_accept 、 __do_sys_accept4 调用</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">int</span> __sys_accept4(<span class="type">int</span> fd, <span class="keyword">struct</span> sockaddr __user *upeer_sockaddr,</span><br><span class="line">		  <span class="type">int</span> __user *upeer_addrlen, <span class="type">int</span> flags)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> ret = -EBADF;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">fd</span> <span class="title">f</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 根据传入的fd拿到fd结构体 */</span></span><br><span class="line">	f = fdget(fd);</span><br><span class="line">	<span class="keyword">if</span> (f.file) &#123;</span><br><span class="line">		<span class="comment">/* 核心处理函数，成功的话，ret就是newfd，否则就是错误码 */</span></span><br><span class="line">		ret = __sys_accept4_file(f.file, upeer_sockaddr, upeer_addrlen, flags);</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 要记得减引用计数 */</span></span><br><span class="line">		fdput(f);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>__sys_accept4_file中，先检查传入的flags是否合法。然后做标志相关的兼容性检查转换。因为是要accept一个新fd，那当前要先选取一个最小未使用的fd。然后调用do_accept，成功的话，这将返回与client socket相关联的newfile。然后就可以将 new fd 与 new file 使用 fd_install 进行关联，这样以后收发数据，传入fd，就可以找到这个new file，而自然可以再找到对应的client socket结构。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 __sys_accept4 调用 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> __sys_accept4_file(<span class="keyword">struct</span> file *file, <span class="keyword">struct</span> sockaddr __user *upeer_sockaddr,</span><br><span class="line">			      <span class="type">int</span> __user *upeer_addrlen, <span class="type">int</span> flags)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* 这个是 client fd 对应的 file 文件对象 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">newfile</span>;</span></span><br><span class="line">	<span class="comment">/* 这个是 client fd */</span></span><br><span class="line">	<span class="type">int</span> newfd;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 检查标志位是否合法，flags 只允许是 CLOEXEC 或 NONBLOCK，其它位不能置1 */</span></span><br><span class="line">	<span class="keyword">if</span> (flags &amp; ~(SOCK_CLOEXEC | SOCK_NONBLOCK))</span><br><span class="line">		<span class="keyword">return</span> -EINVAL;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 把 socket 层的非阻塞标志 统一转换成 文件描述符层的非阻塞标志 *</span></span><br><span class="line"><span class="comment">	 * 将 SOCK_NONBLOCK 清位之后，再将 O_NONBLOCK 置位 */</span></span><br><span class="line">	<span class="keyword">if</span> (SOCK_NONBLOCK != O_NONBLOCK &amp;&amp; (flags &amp; SOCK_NONBLOCK))</span><br><span class="line">		flags = (flags &amp; ~SOCK_NONBLOCK) | O_NONBLOCK;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* accept要返回给外围一个标识远端客户端的fd，</span></span><br><span class="line"><span class="comment">	 * 选取一个最小未使用的fd */</span></span><br><span class="line">	newfd = get_unused_fd_flags(flags);</span><br><span class="line">	<span class="keyword">if</span> (unlikely(newfd &lt; <span class="number">0</span>))</span><br><span class="line">		<span class="keyword">return</span> newfd;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 真正的 accpet，这里返回了一个 file，这个是 client fd 对应的新创建的 file，</span></span><br><span class="line"><span class="comment">	 * 传入的 file 为 listen fd 关联的 file */</span></span><br><span class="line">	newfile = do_accept(file, <span class="number">0</span>, upeer_sockaddr, upeer_addrlen,</span><br><span class="line">			    flags);</span><br><span class="line">	<span class="keyword">if</span> (IS_ERR(newfile)) &#123;</span><br><span class="line">		<span class="comment">/* 失败了，那把之前占用的那个fd归还 */</span></span><br><span class="line">		put_unused_fd(newfd);</span><br><span class="line">		<span class="keyword">return</span> PTR_ERR(newfile);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 走到这里，代表 新fd 、新file 都成功创建了，那将它们进行关联，</span></span><br><span class="line"><span class="comment">	 * 这样以后收发数据，传入fd，我们才能找到是哪个file，才能找到是哪个socket */</span></span><br><span class="line">	fd_install(newfd, newfile);</span><br><span class="line">	<span class="keyword">return</span> newfd;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>在do_accept中，首先通过file，找到socket结构，这个是listen sk对应的socket结构。然后申请一个新的 client sk 关联用的 new socket_alloc结构。再调用sock_alloc_file申请一个new file文件对象，里面会完成new socket与new file的关联。<br>之后就是最核心的，调用 inet_accept 获取到全连接队列中的new sock。再检查外围是否关心这个new sock的地址信息，需要的话，就调用 inet_getname 及 move_addr_to_user 拷给外围。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 __sys_accept4_file 调用 */</span></span><br><span class="line"><span class="keyword">struct</span> file *<span class="title function_">do_accept</span><span class="params">(<span class="keyword">struct</span> file *file, <span class="type">unsigned</span> file_flags,</span></span><br><span class="line"><span class="params">		       <span class="keyword">struct</span> sockaddr __user *upeer_sockaddr,</span></span><br><span class="line"><span class="params">		       <span class="type">int</span> __user *upeer_addrlen, <span class="type">int</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">socket</span> *<span class="title">sock</span>, *<span class="title">newsock</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">newfile</span>;</span></span><br><span class="line">	<span class="type">int</span> err, len;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sockaddr_storage</span> <span class="title">address</span>;</span></span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">proto_ops</span> *<span class="title">ops</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 根据传入的listen fd对应的file结构，找到相应的sock */</span></span><br><span class="line">	sock = sock_from_file(file);</span><br><span class="line">	<span class="keyword">if</span> (!sock)</span><br><span class="line">		<span class="keyword">return</span> ERR_PTR(-ENOTSOCK);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 申请一个 socket_alloc 结构，这将会是新client fd对应的内核中的socket结构 */</span></span><br><span class="line">	newsock = sock_alloc();</span><br><span class="line">	<span class="keyword">if</span> (!newsock)</span><br><span class="line">		<span class="keyword">return</span> ERR_PTR(-ENFILE);</span><br><span class="line">	ops = READ_ONCE(sock-&gt;ops);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 设置类型， SOCK_STREAM 或 SOCK_DGRAM 等 */</span></span><br><span class="line">	newsock-&gt;type = sock-&gt;type;</span><br><span class="line">	<span class="comment">/* 设置client socket的ops ,  socket_file_ops */</span></span><br><span class="line">	newsock-&gt;ops = ops;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * We don&#x27;t need try_module_get here, as the listening socket (sock)</span></span><br><span class="line"><span class="comment">	 * has the protocol module (sock-&gt;ops-&gt;owner) held.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	__module_get(ops-&gt;owner);</span><br><span class="line">	<span class="comment">/* 创建一个file结构体(也就是把上面申请的socket的结构体挂到file的私有结构上) */</span></span><br><span class="line">	newfile = sock_alloc_file(newsock, flags, sock-&gt;sk-&gt;sk_prot_creator-&gt;name);</span><br><span class="line">	<span class="keyword">if</span> (IS_ERR(newfile))</span><br><span class="line">		<span class="keyword">return</span> newfile;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* lsm socket_accept hook点 */</span></span><br><span class="line">	err = security_socket_accept(sock, newsock);</span><br><span class="line">	<span class="keyword">if</span> (err)</span><br><span class="line">		<span class="keyword">goto</span> out_fd;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* inet_accept 、 sock_no_accept */</span></span><br><span class="line">	err = ops-&gt;accept(sock, newsock, sock-&gt;file-&gt;f_flags | file_flags,</span><br><span class="line">					<span class="literal">false</span>);</span><br><span class="line">	<span class="keyword">if</span> (err &lt; <span class="number">0</span>)</span><br><span class="line">		<span class="keyword">goto</span> out_fd;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 外围传入的地址变量不为空，才给它赋值，否则不赋值</span></span><br><span class="line"><span class="comment">	 * 也就是看服务端是否需要对端的地址信息，一般都得需要吧，要不然怎么接收数据呢？ */</span></span><br><span class="line">	<span class="keyword">if</span> (upeer_sockaddr) &#123;</span><br><span class="line">		<span class="comment">/* inet_getname ，将newsock对应的 对端地址、对端端口 信息，存到address里面 */</span></span><br><span class="line">		len = ops-&gt;getname(newsock, (<span class="keyword">struct</span> sockaddr *)&amp;address, <span class="number">2</span>);</span><br><span class="line">		<span class="keyword">if</span> (len &lt; <span class="number">0</span>) &#123;</span><br><span class="line">			err = -ECONNABORTED;</span><br><span class="line">			<span class="keyword">goto</span> out_fd;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* copy_to_user ， 将 远端的地址信息 拷贝给 用户态传入的地址结构中 */</span></span><br><span class="line">		err = move_addr_to_user(&amp;address,</span><br><span class="line">					len, upeer_sockaddr, upeer_addrlen);</span><br><span class="line">		<span class="keyword">if</span> (err &lt; <span class="number">0</span>)</span><br><span class="line">			<span class="keyword">goto</span> out_fd;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* File flags are not inherited via accept() unlike another OSes. </span></span><br><span class="line"><span class="comment">	 * 这里返回的是file，外面会关联 newfd 和 newfile */</span></span><br><span class="line">	<span class="keyword">return</span> newfile;</span><br><span class="line"></span><br><span class="line">out_fd:</span><br><span class="line">	<span class="comment">/* 失败了，那就把新创建这个file释放掉 */</span></span><br><span class="line">	fput(newfile);</span><br><span class="line">	<span class="keyword">return</span> ERR_PTR(err);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>sock 为 监听socket，newsock 为 新accept的socket, newsock 为 新accept的socket 对应的sock。调用 inet_csk_accept，从 listen sock 的 全连接队列的首个req sk上，取出其client sock。然后调用 __inet_accept，完成 newsocket 与 new sock 的关联。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> *	Accept a pending connection. The TCP layer now gives BSD semantics.</span></span><br><span class="line"><span class="comment"> *  由 do_accept 调用</span></span><br><span class="line"><span class="comment"> *  sock 为 监听socket，newsock 为 新accept 的socket</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">inet_accept</span><span class="params">(<span class="keyword">struct</span> socket *sock, <span class="keyword">struct</span> socket *newsock, <span class="type">int</span> flags,</span></span><br><span class="line"><span class="params">		<span class="type">bool</span> kern)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* 从 listen sk 的 socket 上，取出其对应的 sock，赋值为sk1 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sock</span> *<span class="title">sk1</span> =</span> sock-&gt;sk, *sk2;</span><br><span class="line">	<span class="type">int</span> err = -EINVAL;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* IPV6_ADDRFORM can change sk-&gt;sk_prot under us. </span></span><br><span class="line"><span class="comment">	 * inet_csk_accept ，这里将返回 sk1 的全连接队列 中的首个req sk的client sk */</span></span><br><span class="line">	sk2 = READ_ONCE(sk1-&gt;sk_prot)-&gt;accept(sk1, flags, &amp;err, kern);</span><br><span class="line">	<span class="keyword">if</span> (!sk2)</span><br><span class="line">		<span class="keyword">return</span> err;</span><br><span class="line"></span><br><span class="line">	lock_sock(sk2);</span><br><span class="line">	<span class="comment">/* 主要就是做 newsock 与 sk2 的关联 */</span></span><br><span class="line">	__inet_accept(sock, newsock, sk2);</span><br><span class="line">	release_sock(sk2);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(inet_accept);</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>主要负责从 sk 的全连接队列中，取出队列首部req sk的client sk，并返回。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * This will accept the next outstanding connection.</span></span><br><span class="line"><span class="comment"> * 由 inet_accept 调用</span></span><br><span class="line"><span class="comment"> * 主要负责从 sk 的全连接队列中，取出队列首部req sk的client sk，并返回</span></span><br><span class="line"><span class="comment"> * sk：listen sk</span></span><br><span class="line"><span class="comment"> * flags: 一般就是 listen sk 的 flags，一般就是 SOCK_CLOEXEC 或者 SOCK_NONBLOCK </span></span><br><span class="line"><span class="comment"> * err: 用来返回错误码的指针</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">struct</span> sock *<span class="title function_">inet_csk_accept</span><span class="params">(<span class="keyword">struct</span> sock *sk, <span class="type">int</span> flags, <span class="type">int</span> *err, <span class="type">bool</span> kern)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* 从 listen sk 切到 inet connection sk，其实只是类型转了下，值都没变 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_connection_sock</span> *<span class="title">icsk</span> =</span> inet_csk(sk);</span><br><span class="line">	<span class="comment">/* 拿到这个 listend sk 的管理 全连接队列 的结构 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request_sock_queue</span> *<span class="title">queue</span> =</span> &amp;icsk-&gt;icsk_accept_queue;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">request_sock</span> *<span class="title">req</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sock</span> *<span class="title">newsk</span>;</span></span><br><span class="line">	<span class="type">int</span> error;</span><br><span class="line"></span><br><span class="line">	lock_sock(sk);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* We need to make sure that this socket is listening,</span></span><br><span class="line"><span class="comment">	 * and that it has something pending.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	error = -EINVAL;</span><br><span class="line">	<span class="comment">/* 只有调用过 listen，并且成功，sk_state 才是 TCP_LISTEN 状态</span></span><br><span class="line"><span class="comment">	 * 没有调用过 listen 的，调用 accept 会立即失败，返回 -EINVAL */</span></span><br><span class="line">	<span class="keyword">if</span> (sk-&gt;sk_state != TCP_LISTEN)</span><br><span class="line">		<span class="keyword">goto</span> out_err;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* Find already established connection </span></span><br><span class="line"><span class="comment">	 * 如果listen sk 的全连接队列里是空的，那就是暂时没有客户端连接，</span></span><br><span class="line"><span class="comment">	 * 那就要根据flag进入 阻塞等待 或 超时等待，如果是非阻塞套接字，会立即返回 */</span></span><br><span class="line">	<span class="keyword">if</span> (reqsk_queue_empty(<span class="built_in">queue</span>)) &#123;</span><br><span class="line">		<span class="type">long</span> timeo = sock_rcvtimeo(sk, flags &amp; O_NONBLOCK);</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* If this is a non blocking socket don&#x27;t sleep </span></span><br><span class="line"><span class="comment">		 * 如果是非阻塞，是不进入睡眠的，立即返回EAGAIN */</span></span><br><span class="line">		error = -EAGAIN;</span><br><span class="line">		<span class="keyword">if</span> (!timeo)</span><br><span class="line">			<span class="keyword">goto</span> out_err;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 阻塞的，会进入睡眠等待，</span></span><br><span class="line"><span class="comment">		 * 直到 超时了，或者是 全连接队列 有req sk了(也就是由客户端来，且三次握手成功了) */</span></span><br><span class="line">		error = inet_csk_wait_for_connect(sk, timeo);</span><br><span class="line">		<span class="keyword">if</span> (error)</span><br><span class="line">			<span class="keyword">goto</span> out_err;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 到这里，代表listen sk 全连接队列不为空，那就从取出队列首部sk */</span></span><br><span class="line">	req = reqsk_queue_remove(<span class="built_in">queue</span>, sk);</span><br><span class="line">	<span class="comment">/* 从req sock上取出client sk */</span></span><br><span class="line">	newsk = req-&gt;sk;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (sk-&gt;sk_protocol == IPPROTO_TCP &amp;&amp;</span><br><span class="line">	    tcp_rsk(req)-&gt;tfo_listener) &#123;</span><br><span class="line">		spin_lock_bh(&amp;<span class="built_in">queue</span>-&gt;fastopenq.lock);</span><br><span class="line">		<span class="keyword">if</span> (tcp_rsk(req)-&gt;tfo_listener) &#123;</span><br><span class="line">			<span class="comment">/* We are still waiting for the final ACK from 3WHS</span></span><br><span class="line"><span class="comment">			 * so can&#x27;t free req now. Instead, we set req-&gt;sk to</span></span><br><span class="line"><span class="comment">			 * NULL to signify that the child socket is taken</span></span><br><span class="line"><span class="comment">			 * so reqsk_fastopen_remove() will free the req</span></span><br><span class="line"><span class="comment">			 * when 3WHS finishes (or is aborted).</span></span><br><span class="line"><span class="comment">			 */</span></span><br><span class="line">			req-&gt;sk = <span class="literal">NULL</span>;</span><br><span class="line">			req = <span class="literal">NULL</span>;</span><br><span class="line">		&#125;</span><br><span class="line">		spin_unlock_bh(&amp;<span class="built_in">queue</span>-&gt;fastopenq.lock);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">out:</span><br><span class="line">	release_sock(sk);</span><br><span class="line">	<span class="keyword">if</span> (newsk &amp;&amp; mem_cgroup_sockets_enabled) &#123;</span><br><span class="line">		<span class="type">int</span> amt = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* atomically get the memory usage, set and charge the</span></span><br><span class="line"><span class="comment">		 * newsk-&gt;sk_memcg.</span></span><br><span class="line"><span class="comment">		 */</span></span><br><span class="line">		lock_sock(newsk);</span><br><span class="line"></span><br><span class="line">		mem_cgroup_sk_alloc(newsk);</span><br><span class="line">		<span class="keyword">if</span> (newsk-&gt;sk_memcg) &#123;</span><br><span class="line">			<span class="comment">/* The socket has not been accepted yet, no need</span></span><br><span class="line"><span class="comment">			 * to look at newsk-&gt;sk_wmem_queued.</span></span><br><span class="line"><span class="comment">			 */</span></span><br><span class="line">			amt = sk_mem_pages(newsk-&gt;sk_forward_alloc +</span><br><span class="line">					   <span class="type">atomic_read</span>(&amp;newsk-&gt;sk_rmem_alloc));</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (amt)</span><br><span class="line">			mem_cgroup_charge_skmem(newsk-&gt;sk_memcg, amt,</span><br><span class="line">						GFP_KERNEL | __GFP_NOFAIL);</span><br><span class="line"></span><br><span class="line">		release_sock(newsk);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* request sock已经完成了它的使命，释放掉 */</span></span><br><span class="line">	<span class="keyword">if</span> (req)</span><br><span class="line">		reqsk_put(req);</span><br><span class="line">	<span class="keyword">return</span> newsk;</span><br><span class="line"></span><br><span class="line">out_err:</span><br><span class="line">	newsk = <span class="literal">NULL</span>;</span><br><span class="line">	req = <span class="literal">NULL</span>;</span><br><span class="line">	*err = error;</span><br><span class="line">	<span class="keyword">goto</span> out;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(inet_csk_accept);</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>进入睡眠等待，直到 超时 或 有新连接到来。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Wait for an incoming connection, avoid race conditions. This must be called</span></span><br><span class="line"><span class="comment"> * with the socket locked.</span></span><br><span class="line"><span class="comment"> * 由 inet_csk_accept 调用</span></span><br><span class="line"><span class="comment"> * listen sk的全连接队列为空时，调用accept函数，会进入这里</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">inet_csk_wait_for_connect</span><span class="params">(<span class="keyword">struct</span> sock *sk, <span class="type">long</span> timeo)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_connection_sock</span> *<span class="title">icsk</span> =</span> inet_csk(sk);</span><br><span class="line">	DEFINE_WAIT(wait);</span><br><span class="line">	<span class="type">int</span> err;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * True wake-one mechanism for incoming connections: only</span></span><br><span class="line"><span class="comment">	 * one process gets woken up, not the &#x27;whole herd&#x27;.</span></span><br><span class="line"><span class="comment">	 * Since we do not &#x27;race &amp; poll&#x27; for established sockets</span></span><br><span class="line"><span class="comment">	 * anymore, the common case will execute the loop only once.</span></span><br><span class="line"><span class="comment">	 *</span></span><br><span class="line"><span class="comment">	 * Subtle issue: &quot;add_wait_queue_exclusive()&quot; will be added</span></span><br><span class="line"><span class="comment">	 * after any current non-exclusive waiters, and we know that</span></span><br><span class="line"><span class="comment">	 * it will always _stay_ after any new non-exclusive waiters</span></span><br><span class="line"><span class="comment">	 * because all non-exclusive waiters are added at the</span></span><br><span class="line"><span class="comment">	 * beginning of the wait-queue. As such, it&#x27;s ok to &quot;drop&quot;</span></span><br><span class="line"><span class="comment">	 * our exclusiveness temporarily when we get woken up without</span></span><br><span class="line"><span class="comment">	 * having to remove and re-insert us on the wait queue.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="keyword">for</span> (;;) &#123;</span><br><span class="line">		prepare_to_wait_exclusive(sk_sleep(sk), &amp;wait,</span><br><span class="line">					  TASK_INTERRUPTIBLE);</span><br><span class="line">		release_sock(sk);</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 全连接队列还是空的，继续睡眠等待 */</span></span><br><span class="line">		<span class="keyword">if</span> (reqsk_queue_empty(&amp;icsk-&gt;icsk_accept_queue))</span><br><span class="line">			timeo = schedule_timeout(timeo);</span><br><span class="line">		sched_annotate_sleep();</span><br><span class="line">		lock_sock(sk);</span><br><span class="line"></span><br><span class="line">		err = <span class="number">0</span>;		</span><br><span class="line">		<span class="comment">/* 全连接队列有数据了，直接break退出 */</span></span><br><span class="line">		<span class="keyword">if</span> (!reqsk_queue_empty(&amp;icsk-&gt;icsk_accept_queue))</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">		err = -EINVAL;</span><br><span class="line">		<span class="comment">/* 一般listen sk肯定处于TCP_LISTEN状态，不是的话有可能是close了，直接break退出 */</span></span><br><span class="line">		<span class="keyword">if</span> (sk-&gt;sk_state != TCP_LISTEN)</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">		err = sock_intr_errno(timeo);</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 是否是被信号打断 */</span></span><br><span class="line">		<span class="keyword">if</span> (signal_pending(current))</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line"></span><br><span class="line">		err = -EAGAIN;</span><br><span class="line">		<span class="keyword">if</span> (!timeo)</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	finish_wait(sk_sleep(sk), &amp;wait);</span><br><span class="line">	<span class="keyword">return</span> err;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><ol>
+<li>accept 是一个 从监听 socket 的全连接队列中取出已完成三次握手连接 的系统调用。</li>
+<li>glibc 的 accept 函数本身只是对内核系统调用的轻量封装，核心逻辑全部在内核中完成。</li>
+<li>内核在 accept 时，会为新连接分配新的 socket、file 和 fd，并通过 inet_csk_accept 从监听 socket 的 全连接队列 取出已经建立完成的 sock，将其与新 socket 关联。</li>
+<li>如果全连接队列为空，阻塞的 accept 会进入睡眠，直到有新连接完成或超时；非阻塞 accept 则立即返回 -EAGAIN。</li>
+<li>整个过程中，accept 不参与 TCP 三次握手本身，只是负责 取结果、建对象、返 fd 。</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/socket/" rel="tag"># socket</a>
+              <a href="/tags/%E7%BD%91%E7%BB%9C/" rel="tag"># 网络</a>
+              <a href="/tags/tcp%E5%BB%BA%E8%BF%9E/" rel="tag"># tcp建连</a>
+              <a href="/tags/accept/" rel="tag"># accept</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2025/12/17/listen%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/" rel="prev" title="listen系统调用">
+                  <i class="fa fa-angle-left"></i> listen系统调用
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2025/12/21/connect%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%EF%BC%88%E4%B8%80%EF%BC%89/" rel="next" title="connect系统调用（一）">
+                  connect系统调用（一） <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2025 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">wangzhixin</span>
+  </div>
+<div class="busuanzi-count">
+    <span class="post-meta-item" id="busuanzi_container_site_uv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: dark)"><meta name="generator" content="Hexo 8.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":true,"version":"8.26.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"base16/onedark","dark":"base16/onedark"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":"mac"},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"/search.json","localsearch":{"enable":true,"top_n_per_article":1,"unescape":false,"preload":true,"highlight":true}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="我们在写网络编程时，经常使用bind函数，而bind函数内部的实现原理究竟为何？到底做了哪些事情呢？本篇主要聚焦介绍此问题。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="bind系统调用">
+<meta property="og:url" content="http://example.com/2025/12/16/bind%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/index.html">
+<meta property="og:site_name" content="积硅步，至千里">
+<meta property="og:description" content="我们在写网络编程时，经常使用bind函数，而bind函数内部的实现原理究竟为何？到底做了哪些事情呢？本篇主要聚焦介绍此问题。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2025-12-16T14:13:10.000Z">
+<meta property="article:modified_time" content="2026-01-05T14:36:34.204Z">
+<meta property="article:author" content="wangzhixin">
+<meta property="article:tag" content="bind">
+<meta property="article:tag" content="socket">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2025/12/16/bind%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://example.com/2025/12/16/bind%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/","path":"2025/12/16/bind系统调用/","title":"bind系统调用"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>bind系统调用 | 积硅步，至千里</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/motion.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hexo-generator-searchdb/1.5.0/search.js" integrity="sha256-xFC6PJ82SL9b3WkGjFavNiA9gm5z6UBxWPiu4CYjptg=" crossorigin="anonymous" defer></script>
+<script src="/js/third-party/search/local-search.js" defer></script>
+
+
+
+
+
+
+
+  
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">积硅步，至千里</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+      <div class="search-header">
+        <span class="search-icon">
+          <i class="fa fa-search"></i>
+        </span>
+        <div class="search-input-container">
+          <input autocomplete="off" autocapitalize="off" maxlength="80"
+                placeholder="搜索..." spellcheck="false"
+                type="search" class="search-input">
+        </div>
+        <span class="popup-btn-close" role="button">
+          <i class="fa fa-times-circle"></i>
+        </span>
+      </div>
+      <div class="search-result-container">
+        <div class="search-result-icon">
+          <i class="fa fa-spinner fa-pulse fa-5x"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#glibc-bind%E5%87%BD%E6%95%B0%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">glibc bind函数介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#bind%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8"><span class="nav-number">2.</span> <span class="nav-text">bind系统调用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">wangzhixin</p>
+  <div class="site-description" itemprop="description">Linux C/C++</div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">12</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2025/12/16/bind%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="wangzhixin">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="积硅步，至千里">
+      <meta itemprop="description" content="Linux C/C++">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="bind系统调用 | 积硅步，至千里">
+      <meta itemprop="description" content="我们在写网络编程时，经常使用bind函数，而bind函数内部的实现原理究竟为何？到底做了哪些事情呢？本篇主要聚焦介绍此问题。">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          bind系统调用
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2025-12-16 22:13:10" itemprop="dateCreated datePublished" datetime="2025-12-16T22:13:10+08:00">2025-12-16</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">更新于</span>
+      <time title="修改时间：2026-01-05 22:36:34" itemprop="dateModified" datetime="2026-01-05T22:36:34+08:00">2026-01-05</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/linux6-6%E5%86%85%E6%A0%B8/" itemprop="url" rel="index"><span itemprop="name">linux6.6内核</span></a>
+        </span>
+    </span>
+
+  
+    <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv">
+      <span class="post-meta-item-icon">
+        <i class="far fa-eye"></i>
+      </span>
+      <span class="post-meta-item-text">阅读次数：</span>
+      <span id="busuanzi_value_page_pv"></span>
+    </span>
+</div>
+
+            <div class="post-description">我们在写网络编程时，经常使用bind函数，而bind函数内部的实现原理究竟为何？到底做了哪些事情呢？本篇主要聚焦介绍此问题。</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h2 id="glibc-bind函数介绍"><a href="#glibc-bind函数介绍" class="headerlink" title="glibc bind函数介绍"></a>glibc bind函数介绍</h2><p>我们使用的bind函数，原型如下。<br>代码位置为：&#x2F;usr&#x2F;include&#x2F;x86_64-linux-gnu&#x2F;sys&#x2F;socket.h</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">extern</span> <span class="type">int</span> <span class="title function_">bind</span> <span class="params">(<span class="type">int</span> __fd, __CONST_SOCKADDR_ARG __addr, <span class="type">socklen_t</span> __len)</span></span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>介绍</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>__fd</td>
+<td>socket返回的fd</td>
+</tr>
+<tr>
+<td>__addr</td>
+<td>为套接字 sockfd 指定本地地址</td>
+</tr>
+<tr>
+<td>__len</td>
+<td>__addr的大小</td>
+</tr>
+</tbody></table>
+<p>而bind函数是glibc中提供的函数，我们看下glibc中的bind函数实现。<br>代码位置在：glibc-2.41&#x2F;sysdeps&#x2F;unix&#x2F;sysv&#x2F;linux&#x2F;bind.c</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/socket.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;socketcall.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">int</span></span><br><span class="line">__bind (<span class="type">int</span> fd, __CONST_SOCKADDR_ARG addr, <span class="type">socklen_t</span> len)</span><br><span class="line">&#123;</span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> __ASSUME_BIND_SYSCALL</span></span><br><span class="line">  <span class="keyword">return</span> INLINE_SYSCALL_CALL (bind, fd, addr.__sockaddr__, len);</span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line">  <span class="keyword">return</span> SOCKETCALL (bind, fd, addr.__sockaddr__, len, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">&#125;</span><br><span class="line">weak_alias (__bind, bind)</span><br></pre></td></tr></table></figure>
+
+<p>glibc中的bind函数也几乎什么都没做，可以理解为仅仅是内核bind系统调用(__do_sys_bind)的一个封装。中间的步骤在<a target="_blank" rel="noopener" href="https://wangzhixin2021.github.io/2025/12/09/syscall%E8%B0%83%E7%94%A8%E6%B5%81%E7%A8%8B%E5%88%86%E6%9E%90/">syscall调用流程分析</a>中有做展开讲解，这里不再赘述。</p>
+<h2 id="bind系统调用"><a href="#bind系统调用" class="headerlink" title="bind系统调用"></a>bind系统调用</h2><p>我们首先来看下bind系统调用的入口。可以看到__do_sys_bind，什么都没做，只是再次调用了__sys_bind。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">SYSCALL_DEFINE3(bind, <span class="type">int</span>, fd, <span class="keyword">struct</span> sockaddr __user *, umyaddr, <span class="type">int</span>, addrlen)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">return</span> __sys_bind(fd, umyaddr, addrlen);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>在__sys_bind中，首先需要使用sockfd_lookup_light将fd转换出对应的socket结构，fd只是用户态使用的，在内核会对应一个socket结构。如果没找到，那代表传的是个垃圾fd，直接返回错误。如果找到了，代表传递的fd是有效的。<br>如果找到了sock，那就调用move_addr_to_kernel，将传入的umyaddr转换到内核态的address结构中(因为传递的是地址，内核态是不能直接访问用户态的地址的)。<br>然后过lsm socket_bind hook点，没有返回错误，那就直接调用inet_bind函数。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> *  由 __do_sys_bind 调用</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">int</span> __sys_bind(<span class="type">int</span> fd, <span class="keyword">struct</span> sockaddr __user *umyaddr, <span class="type">int</span> addrlen)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">socket</span> *<span class="title">sock</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sockaddr_storage</span> <span class="title">address</span>;</span></span><br><span class="line">	<span class="type">int</span> err, fput_needed;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* fd -&gt; socket */</span></span><br><span class="line">	sock = sockfd_lookup_light(fd, &amp;err, &amp;fput_needed);</span><br><span class="line">	<span class="keyword">if</span> (sock) &#123;</span><br><span class="line">		<span class="comment">/* copy_from_user */</span></span><br><span class="line">		err = move_addr_to_kernel(umyaddr, addrlen, &amp;address);</span><br><span class="line">		<span class="keyword">if</span> (!err) &#123;</span><br><span class="line">			<span class="comment">/* lsm socket_bind hook点 */</span></span><br><span class="line">			err = security_socket_bind(sock,</span><br><span class="line">						   (<span class="keyword">struct</span> sockaddr *)&amp;address,</span><br><span class="line">						   addrlen);</span><br><span class="line">			<span class="keyword">if</span> (!err) &#123;</span><br><span class="line">				<span class="comment">/* inet_bind */</span></span><br><span class="line">				err = READ_ONCE(sock-&gt;ops)-&gt;bind(sock,</span><br><span class="line">						      (<span class="keyword">struct</span> sockaddr *)</span><br><span class="line">						      &amp;address, addrlen);</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		fput_light(sock-&gt;file, fput_needed);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> err;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>sockfd_lookup_light中，就是将fd去current-&gt;files-&gt;fdt[fd]拿到文件对象，文件对象与socket是互指的，所以可以直接从文件对象的private_data中获取到socket指针。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 __sys_bind 调用</span></span><br><span class="line"><span class="comment"> * 通过fd 查找到file，file的私有指针，就是其对应的socket */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">struct</span> socket *<span class="title function_">sockfd_lookup_light</span><span class="params">(<span class="type">int</span> fd, <span class="type">int</span> *err, <span class="type">int</span> *fput_needed)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* 根据传入的fd，从进程管理的fdtable中找到对应的file，这里 fd结构体 中的一个字段为file */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">fd</span> <span class="title">f</span> =</span> fdget(fd);</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">socket</span> *<span class="title">sock</span>;</span></span><br><span class="line"></span><br><span class="line">	*err = -EBADF;</span><br><span class="line">	<span class="keyword">if</span> (f.file) &#123;</span><br><span class="line">		<span class="comment">/* 从file的私有数据里拿到sock */</span></span><br><span class="line">		sock = sock_from_file(f.file);</span><br><span class="line">		<span class="keyword">if</span> (likely(sock)) &#123;</span><br><span class="line">			*fput_needed = f.flags &amp; FDPUT_FPUT;</span><br><span class="line">			<span class="keyword">return</span> sock;</span><br><span class="line">		&#125;</span><br><span class="line">		*err = -ENOTSOCK;</span><br><span class="line">		fdput(f);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="keyword">struct</span> fd <span class="title function_">fdget</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> fd)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> __to_fd(__fdget(fd));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">unsigned</span> <span class="type">long</span> __fdget(<span class="type">unsigned</span> <span class="type">int</span> fd)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> __fget_light(fd, FMODE_PATH);</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(__fdget);</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">unsigned</span> <span class="type">long</span> __fget_light(<span class="type">unsigned</span> <span class="type">int</span> fd, <span class="type">fmode_t</span> mask)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">files_struct</span> *<span class="title">files</span> =</span> current-&gt;files;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">file</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * If another thread is concurrently calling close_fd() followed</span></span><br><span class="line"><span class="comment">	 * by put_files_struct(), we must not observe the old table</span></span><br><span class="line"><span class="comment">	 * entry combined with the new refcount - otherwise we could</span></span><br><span class="line"><span class="comment">	 * return a file that is concurrently being freed.</span></span><br><span class="line"><span class="comment">	 *</span></span><br><span class="line"><span class="comment">	 * atomic_read_acquire() pairs with atomic_dec_and_test() in</span></span><br><span class="line"><span class="comment">	 * put_files_struct().</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="keyword">if</span> (atomic_read_acquire(&amp;files-&gt;count) == <span class="number">1</span>) &#123;</span><br><span class="line">		file = files_lookup_fd_raw(files, fd);</span><br><span class="line">		<span class="keyword">if</span> (!file || unlikely(file-&gt;f_mode &amp; mask))</span><br><span class="line">			<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">		<span class="keyword">return</span> (<span class="type">unsigned</span> <span class="type">long</span>)file;</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		file = __fget(fd, mask);</span><br><span class="line">		<span class="keyword">if</span> (!file)</span><br><span class="line">			<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">		<span class="keyword">return</span> FDPUT_FPUT | (<span class="type">unsigned</span> <span class="type">long</span>)file;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="keyword">struct</span> file *<span class="title function_">files_lookup_fd_raw</span><span class="params">(<span class="keyword">struct</span> files_struct *files, <span class="type">unsigned</span> <span class="type">int</span> fd)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">fdtable</span> *<span class="title">fdt</span> =</span> rcu_dereference_raw(files-&gt;fdt);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (fd &lt; fdt-&gt;max_fds) &#123;</span><br><span class="line">		fd = array_index_nospec(fd, fdt-&gt;max_fds);</span><br><span class="line">		<span class="keyword">return</span> rcu_dereference_raw(fdt-&gt;fd[fd]);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">struct</span> socket *<span class="title function_">sock_from_file</span><span class="params">(<span class="keyword">struct</span> file *file)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* 得确认这个file真的关联的是一个socket，才能取它的private_data */</span></span><br><span class="line">	<span class="keyword">if</span> (file-&gt;f_op == &amp;socket_file_ops)</span><br><span class="line">		<span class="keyword">return</span> file-&gt;private_data;	<span class="comment">/* set in sock_alloc_file */</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(sock_from_file);</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>move_addr_to_kernel就是调用了copy_from_user，将用户态的地址结构拷贝到内核态。常用的就是copy_from_user、copy_to_user之类的。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">move_addr_to_kernel</span><span class="params">(<span class="type">void</span> __user *uaddr, <span class="type">int</span> ulen, <span class="keyword">struct</span> sockaddr_storage *kaddr)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">if</span> (ulen &lt; <span class="number">0</span> || ulen &gt; <span class="keyword">sizeof</span>(<span class="keyword">struct</span> sockaddr_storage))</span><br><span class="line">		<span class="keyword">return</span> -EINVAL;</span><br><span class="line">	<span class="keyword">if</span> (ulen == <span class="number">0</span>)</span><br><span class="line">		<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">	<span class="keyword">if</span> (copy_from_user(kaddr, uaddr, ulen))</span><br><span class="line">		<span class="keyword">return</span> -EFAULT;</span><br><span class="line">	<span class="keyword">return</span> audit_sockaddr(ulen, kaddr);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>inet_bind从socket上取出对应的sock结构指针，然后调用inet_bind_sk。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 __sys_bind 调用 */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">inet_bind</span><span class="params">(<span class="keyword">struct</span> socket *sock, <span class="keyword">struct</span> sockaddr *uaddr, <span class="type">int</span> addr_len)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> inet_bind_sk(sock-&gt;sk, uaddr, addr_len);</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(inet_bind);</span><br></pre></td></tr></table></figure>
+
+<p>inet_bind_sk中，判断bind是否为空，不为空则调用bind绑定的函数，tcp、udp都是没有bind实现的(他们的绑定是get_port)。进行了地址长度校验，bpf 钩子点，然后调用__inet_bind。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 inet_bind 调用 */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">inet_bind_sk</span><span class="params">(<span class="keyword">struct</span> sock *sk, <span class="keyword">struct</span> sockaddr *uaddr, <span class="type">int</span> addr_len)</span></span><br><span class="line">&#123;</span><br><span class="line">	u32 flags = BIND_WITH_LOCK;</span><br><span class="line">	<span class="type">int</span> err;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* If the socket has its own bind function then use it. (RAW) </span></span><br><span class="line"><span class="comment">	 * tcp_prot 、 udp_prot 都没有 bind 实现，</span></span><br><span class="line"><span class="comment">	 * ping_prot 、 raw_prot 有 bind 实现 */</span></span><br><span class="line">	<span class="keyword">if</span> (sk-&gt;sk_prot-&gt;bind) &#123;</span><br><span class="line">		<span class="comment">/* ping_bind 、 raw_bind */</span></span><br><span class="line">		<span class="keyword">return</span> sk-&gt;sk_prot-&gt;bind(sk, uaddr, addr_len);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 校验地址长度是否合法 */</span></span><br><span class="line">	<span class="keyword">if</span> (addr_len &lt; <span class="keyword">sizeof</span>(<span class="keyword">struct</span> sockaddr_in))</span><br><span class="line">		<span class="keyword">return</span> -EINVAL;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* BPF prog is run before any checks are done so that if the prog</span></span><br><span class="line"><span class="comment">	 * changes context in a wrong way it will be caught.</span></span><br><span class="line"><span class="comment">	 * bpf</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	err = BPF_CGROUP_RUN_PROG_INET_BIND_LOCK(sk, uaddr,</span><br><span class="line">						 CGROUP_INET4_BIND, &amp;flags);</span><br><span class="line">	<span class="keyword">if</span> (err)</span><br><span class="line">		<span class="keyword">return</span> err;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> __inet_bind(sk, uaddr, addr_len, flags);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>在__inet_bind中：</p>
+<ol>
+<li>首先对要绑定的地址的协议族进行检查。</li>
+<li>然后对要绑定的地址类型做判断，判断是否是本机地址、多播、广播等。</li>
+<li>接着检查是否允许 bind 非本地地址。</li>
+<li>特权端口检查、权限检查</li>
+<li>是否重复绑定端口检查</li>
+<li>no port标志位检查</li>
+<li>申请绑定port</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 inet_bind_sk 调用 */</span></span><br><span class="line"><span class="type">int</span> __inet_bind(<span class="keyword">struct</span> sock *sk, <span class="keyword">struct</span> sockaddr *uaddr, <span class="type">int</span> addr_len, u32 flags)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sockaddr_in</span> *<span class="title">addr</span> =</span> (<span class="keyword">struct</span> sockaddr_in *)uaddr;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_sock</span> *<span class="title">inet</span> =</span> inet_sk(sk);</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">net</span> *<span class="title">net</span> =</span> sock_net(sk);</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">short</span> snum;</span><br><span class="line">	<span class="type">int</span> chk_addr_ret;</span><br><span class="line">	u32 tb_id = RT_TABLE_LOCAL;</span><br><span class="line">	<span class="type">int</span> err;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 地址协议族校验 */</span></span><br><span class="line">	<span class="keyword">if</span> (addr-&gt;sin_family != AF_INET) &#123;</span><br><span class="line">		<span class="comment">/* Compatibility games : accept AF_UNSPEC (mapped to AF_INET)</span></span><br><span class="line"><span class="comment">		 * only if s_addr is INADDR_ANY.</span></span><br><span class="line"><span class="comment">		 */</span></span><br><span class="line">		err = -EAFNOSUPPORT;</span><br><span class="line">		<span class="comment">/* 允许 AF_UNSPEC + INADDR_ANY，这是历史兼容行为 */</span></span><br><span class="line">		<span class="keyword">if</span> (addr-&gt;sin_family != AF_UNSPEC ||</span><br><span class="line">		    addr-&gt;sin_addr.s_addr != htonl(INADDR_ANY))</span><br><span class="line">			<span class="keyword">goto</span> out;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 地址类型判断(本地/多播/广播) </span></span><br><span class="line"><span class="comment">	 * RTN_LOCAL		本机地址</span></span><br><span class="line"><span class="comment">	 * RTN_MULTICAST	多播</span></span><br><span class="line"><span class="comment">	 * RTN_BROADCAST	广播</span></span><br><span class="line"><span class="comment">	 * RTN_UNICAST		单播</span></span><br><span class="line"><span class="comment">	 * RTN_UNREACHABLE	不可达 </span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	tb_id = l3mdev_fib_table_by_index(net, sk-&gt;sk_bound_dev_if) ? : tb_id;</span><br><span class="line">	chk_addr_ret = inet_addr_type_table(net, addr-&gt;sin_addr.s_addr, tb_id);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* Not specified by any standard per-se, however it breaks too</span></span><br><span class="line"><span class="comment">	 * many applications when removed.  It is unfortunate since</span></span><br><span class="line"><span class="comment">	 * allowing applications to make a non-local bind solves</span></span><br><span class="line"><span class="comment">	 * several problems with systems using dynamic addressing.</span></span><br><span class="line"><span class="comment">	 * (ie. your servers still start up even if your ISDN link</span></span><br><span class="line"><span class="comment">	 *  is temporarily down)</span></span><br><span class="line"><span class="comment">	 * 检查是否允许 bind 非本地地址，</span></span><br><span class="line"><span class="comment">	 * 解决DHCP/动态地址/服务先启动的问题，否则服务器必须等IP配好才能启动，体验差</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	err = -EADDRNOTAVAIL;</span><br><span class="line">	<span class="keyword">if</span> (!inet_addr_valid_or_nonlocal(net, inet, addr-&gt;sin_addr.s_addr,</span><br><span class="line">	                                 chk_addr_ret))</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 将要绑定的端口转换成主机序 */</span></span><br><span class="line">	snum = ntohs(addr-&gt;sin_port);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 特权端口检查，绑定特权端口，必须要有满足权限限制，否则go out */</span></span><br><span class="line">	err = -EACCES;</span><br><span class="line">	<span class="keyword">if</span> (!(flags &amp; BIND_NO_CAP_NET_BIND_SERVICE) &amp;&amp;</span><br><span class="line">	    snum &amp;&amp; inet_port_requires_bind_service(net, snum) &amp;&amp;</span><br><span class="line">	    !ns_capable(net-&gt;user_ns, CAP_NET_BIND_SERVICE))</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*      We keep a pair of addresses. rcv_saddr is the one</span></span><br><span class="line"><span class="comment">	 *      used by hash lookups, and saddr is used for transmit.</span></span><br><span class="line"><span class="comment">	 *</span></span><br><span class="line"><span class="comment">	 *      In the BSD API these are the same except where it</span></span><br><span class="line"><span class="comment">	 *      would be illegal to use them (multicast/broadcast) in</span></span><br><span class="line"><span class="comment">	 *      which case the sending device address is used.</span></span><br><span class="line"><span class="comment">	 *      判断是否要加锁，如果是从 inet_bind_sk 调过来的，</span></span><br><span class="line"><span class="comment">	 *      是需要加锁的，因为有赋值为 BIND_WITH_LOCK，</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="keyword">if</span> (flags &amp; BIND_WITH_LOCK)</span><br><span class="line">		lock_sock(sk);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* Check these errors (active socket, double bind). </span></span><br><span class="line"><span class="comment">	 * bind 只发生在 TCP_CLOSE，如果已经bind过了，那inet_num不为0 */</span></span><br><span class="line">	err = -EINVAL;</span><br><span class="line">	<span class="keyword">if</span> (sk-&gt;sk_state != TCP_CLOSE || inet-&gt;inet_num)</span><br><span class="line">		<span class="keyword">goto</span> out_release_sock;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 设置要绑定的地址 */</span></span><br><span class="line">	inet-&gt;inet_rcv_saddr = inet-&gt;inet_saddr = addr-&gt;sin_addr.s_addr;</span><br><span class="line">	<span class="comment">/* 特别的，如果绑定的是多播或者广播地址，本地地址设置为0，</span></span><br><span class="line"><span class="comment">	 * rcv_saddr：用于 hash 查找(收包)</span></span><br><span class="line"><span class="comment">	 * saddr：用于 发包(选路)</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	<span class="keyword">if</span> (chk_addr_ret == RTN_MULTICAST || chk_addr_ret == RTN_BROADCAST)</span><br><span class="line">		inet-&gt;inet_saddr = <span class="number">0</span>;  <span class="comment">/* Use device */</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* Make sure we are allowed to bind here.</span></span><br><span class="line"><span class="comment">	 * 端口非0，或者是没有设置no port 或 没有设置强制no port，那就去尝试去绑定一个端口，</span></span><br><span class="line"><span class="comment">	 * 否则则不绑定端口 */</span></span><br><span class="line">	<span class="keyword">if</span> (snum || !(inet_test_bit(BIND_ADDRESS_NO_PORT, sk) ||</span><br><span class="line">		      (flags &amp; BIND_FORCE_ADDRESS_NO_PORT))) &#123;</span><br><span class="line">		<span class="comment">/* inet_csk_get_port 、 udp_v4_get_port */</span></span><br><span class="line">		err = sk-&gt;sk_prot-&gt;get_port(sk, snum);</span><br><span class="line">		<span class="keyword">if</span> (err) &#123;</span><br><span class="line">			<span class="comment">/* get_port 失败了 */</span></span><br><span class="line">			inet-&gt;inet_saddr = inet-&gt;inet_rcv_saddr = <span class="number">0</span>;</span><br><span class="line">			<span class="keyword">goto</span> out_release_sock;</span><br><span class="line">		&#125;</span><br><span class="line">		<span class="keyword">if</span> (!(flags &amp; BIND_FROM_BPF)) &#123;</span><br><span class="line">			<span class="comment">/* bpf hook点 */</span></span><br><span class="line">			err = BPF_CGROUP_RUN_PROG_INET4_POST_BIND(sk);</span><br><span class="line">			<span class="keyword">if</span> (err) &#123;</span><br><span class="line">				inet-&gt;inet_saddr = inet-&gt;inet_rcv_saddr = <span class="number">0</span>;</span><br><span class="line">				<span class="comment">/* 释放port，inet_put_port、udp_lib_unhash */</span></span><br><span class="line">				<span class="keyword">if</span> (sk-&gt;sk_prot-&gt;put_port)</span><br><span class="line">					sk-&gt;sk_prot-&gt;put_port(sk);</span><br><span class="line">				<span class="keyword">goto</span> out_release_sock;</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (inet-&gt;inet_rcv_saddr)</span><br><span class="line">		sk-&gt;sk_userlocks |= SOCK_BINDADDR_LOCK;</span><br><span class="line">	<span class="keyword">if</span> (snum)</span><br><span class="line">		sk-&gt;sk_userlocks |= SOCK_BINDPORT_LOCK;</span><br><span class="line">	inet-&gt;inet_sport = htons(inet-&gt;inet_num);</span><br><span class="line">	inet-&gt;inet_daddr = <span class="number">0</span>;</span><br><span class="line">	inet-&gt;inet_dport = <span class="number">0</span>;</span><br><span class="line">	sk_dst_reset(sk);</span><br><span class="line">	err = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">out_release_sock:</span><br><span class="line">	<span class="keyword">if</span> (flags &amp; BIND_WITH_LOCK)</span><br><span class="line">		release_sock(sk);</span><br><span class="line">out:</span><br><span class="line">	<span class="keyword">return</span> err;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>inet_csk_get_port就是判断传入的端口是否为0，为了就走inet_csk_find_open_port，自动选取合适的端口。不为0就是指定要绑定的端口，直接计算hash，看是否已有该hash对应的桶，没有则创建，有则判断网络命名空间、port、l3mdev是否匹配。并且如果是指定的端口是需要进行冲突检测，随机端口因为选取时就已经做了冲突检测，所以这里不再需要额外做冲突检测。如果没有冲突，就将这个sk插入到bhash、bhash2哈希表的对应哈希桶的owners上，owners也是个哈希表。 </p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * __inet_bind 、 inet_csk_listen_start  都会调用这个函数</span></span><br><span class="line"><span class="comment"> * __inet_bind 是来 bind 绑定端口的</span></span><br><span class="line"><span class="comment"> * inet_csk_listen_start 是 listen 来检查下端口是否绑定的</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">inet_csk_get_port</span><span class="params">(<span class="keyword">struct</span> sock *sk, <span class="type">unsigned</span> <span class="type">short</span> snum)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* 获取该sk所在命名空间里，用来管理 各种 tcp 套接字 的哈希组合结构 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_hashinfo</span> *<span class="title">hinfo</span> =</span> tcp_or_dccp_get_hashinfo(sk);</span><br><span class="line">	<span class="type">bool</span> reuse = sk-&gt;sk_reuse &amp;&amp; sk-&gt;sk_state != TCP_LISTEN;</span><br><span class="line">	<span class="comment">/* 用来标识，随机分配端口时，是否找到了合适的端口 */</span></span><br><span class="line">	<span class="type">bool</span> found_port = <span class="literal">false</span>;</span><br><span class="line">	<span class="type">bool</span> check_bind_conflict = <span class="literal">true</span>;</span><br><span class="line">	<span class="comment">/* 用来标识是否在 bhash 、bhash2 上创建了新哈希桶 */</span></span><br><span class="line">	<span class="type">bool</span> bhash_created = <span class="literal">false</span>, bhash2_created = <span class="literal">false</span>;</span><br><span class="line">	<span class="type">int</span> ret = -EADDRINUSE;</span><br><span class="line">	<span class="type">int</span> port = snum;</span><br><span class="line">	<span class="type">int</span> l3mdev;</span><br><span class="line">	<span class="comment">/* 端口 在 bhash 、bhash2 上对应的 哈希槽 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_bind_hashbucket</span> *<span class="title">head</span>, *<span class="title">head2</span>;</span></span><br><span class="line">	<span class="comment">/* 端口 在 bhash 、bhash2 上对应的 哈希桶 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_bind_bucket</span> *<span class="title">tb</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_bind2_bucket</span> *<span class="title">tb2</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">	<span class="comment">/* 用来标识是否持有了bhash2上哈希槽的锁 */</span></span><br><span class="line">	<span class="type">bool</span> head2_lock_acquired = <span class="literal">false</span>;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">net</span> *<span class="title">net</span> =</span> sock_net(sk);</span><br><span class="line"></span><br><span class="line">	l3mdev = inet_sk_bound_l3mdev(sk);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 如果没有指定端口，就是想让内核给它随机绑定一个 */</span></span><br><span class="line">	<span class="keyword">if</span> (!port) &#123;</span><br><span class="line">		<span class="comment">/* 在内核限制的端口范围内，随机找端口，</span></span><br><span class="line"><span class="comment">		 * 找到了合适端口，则能找到其对应的 bhash 上的哈希槽， </span></span><br><span class="line"><span class="comment">		 * 没找到合适端口，则返回空 */</span></span><br><span class="line">		head = inet_csk_find_open_port(sk, &amp;tb, &amp;tb2, &amp;head2, &amp;port);</span><br><span class="line">		<span class="keyword">if</span> (!head)</span><br><span class="line">			<span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">		head2_lock_acquired = <span class="literal">true</span>;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 如果port对应的tb、tb2哈希桶都存在，直接跳转到success */</span></span><br><span class="line">		<span class="keyword">if</span> (tb &amp;&amp; tb2)</span><br><span class="line">			<span class="keyword">goto</span> success;</span><br><span class="line">	</span><br><span class="line">		<span class="comment">/* 随机选出的端口，inet_csk_find_open_port已经做过冲突检测了，</span></span><br><span class="line"><span class="comment">		 * 所以这里置true，后面会跳过很多冲突检测的逻辑 */</span></span><br><span class="line">		found_port = <span class="literal">true</span>;</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		<span class="comment">/* 指定了端口，直接计算 bhash，拿到 bhash 哈希表上的对应哈希桶 */</span></span><br><span class="line">		head = &amp;hinfo-&gt;bhash[inet_bhashfn(net, port, hinfo-&gt;bhash_size)];</span><br><span class="line">		spin_lock_bh(&amp;head-&gt;lock);</span><br><span class="line">		<span class="comment">/* 遍历bhash哈希表上面对应的哈希槽，是否有 相同命名空间 且 端口相同的 且 l3mdev 相同的</span></span><br><span class="line"><span class="comment">		 * 有则直接break，此时tb不为空，</span></span><br><span class="line"><span class="comment">		 * 没有则会遍历完这个槽，此时tb为空 */</span></span><br><span class="line">		inet_bind_bucket_for_each(tb, &amp;head-&gt;chain)</span><br><span class="line">			<span class="keyword">if</span> (inet_bind_bucket_match(tb, net, port, l3mdev))</span><br><span class="line">				<span class="keyword">break</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!tb) &#123;</span><br><span class="line">		<span class="comment">/* 在 bhash 哈希表上创建哈希桶，注意这里创建完就已经加到了bhash里 */</span></span><br><span class="line">		tb = inet_bind_bucket_create(hinfo-&gt;bind_bucket_cachep, net,</span><br><span class="line">					     head, port, l3mdev);</span><br><span class="line">		<span class="keyword">if</span> (!tb)</span><br><span class="line">			<span class="keyword">goto</span> fail_unlock;</span><br><span class="line">		bhash_created = <span class="literal">true</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 走到这里，只有是指定的端口，found_port才会是false */</span></span><br><span class="line">	<span class="keyword">if</span> (!found_port) &#123;</span><br><span class="line">		<span class="comment">/* 当前是否有其它socket持有tb这个哈希桶(是否使用了这个端口) */</span></span><br><span class="line">		<span class="keyword">if</span> (!hlist_empty(&amp;tb-&gt;owners)) &#123;</span><br><span class="line">			<span class="comment">/* 设置了reuse，那就不再检查冲突 */</span></span><br><span class="line">			<span class="keyword">if</span> (sk-&gt;sk_reuse == SK_FORCE_REUSE ||	<span class="comment">/* 强制重用 */</span></span><br><span class="line">			    (tb-&gt;fastreuse &gt; <span class="number">0</span> &amp;&amp; reuse) ||		<span class="comment">/* 快速重用且当前socket允许重用 */</span></span><br><span class="line">			    sk_reuseport_match(tb, sk))			<span class="comment">/* 端口重用匹配 */</span></span><br><span class="line">				check_bind_conflict = <span class="literal">false</span>;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 检查冲突标志位开启，并且 sk_rcv_saddr 不是 ANY，才去检查冲突 */</span></span><br><span class="line">		<span class="keyword">if</span> (check_bind_conflict &amp;&amp; inet_use_bhash2_on_bind(sk)) &#123;</span><br><span class="line">			<span class="keyword">if</span> (inet_bhash2_addr_any_conflict(sk, port, l3mdev, <span class="literal">true</span>, <span class="literal">true</span>))</span><br><span class="line">				<span class="keyword">goto</span> fail_unlock;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 走到这里的，是没获取过head2、tb2的，去获取下,</span></span><br><span class="line"><span class="comment">		 * 根据 sk_rcv_saddr 、port，直接计算 hash2，拿到 bhash 哈希表上的对应哈希桶 */</span></span><br><span class="line">		head2 = inet_bhashfn_portaddr(hinfo, sk, net, port);</span><br><span class="line">		spin_lock(&amp;head2-&gt;lock);</span><br><span class="line">		head2_lock_acquired = <span class="literal">true</span>;</span><br><span class="line">		tb2 = inet_bind2_bucket_find(head2, net, port, l3mdev, sk);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!tb2) &#123;</span><br><span class="line">		<span class="comment">/* 在 bhash2 哈希表上创建哈希桶，注意这里创建完就已经加到了bhash2里 */</span></span><br><span class="line">		tb2 = inet_bind2_bucket_create(hinfo-&gt;bind2_bucket_cachep,</span><br><span class="line">					       net, head2, port, l3mdev, sk);</span><br><span class="line">		<span class="keyword">if</span> (!tb2)</span><br><span class="line">			<span class="keyword">goto</span> fail_unlock;</span><br><span class="line">		bhash2_created = <span class="literal">true</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 只有是指定的端口，found_port才会是false，并且没开reuse，再次检查冲突 */</span></span><br><span class="line">	<span class="keyword">if</span> (!found_port &amp;&amp; check_bind_conflict) &#123;</span><br><span class="line">		<span class="keyword">if</span> (inet_csk_bind_conflict(sk, tb, tb2, <span class="literal">true</span>, <span class="literal">true</span>))</span><br><span class="line">			<span class="keyword">goto</span> fail_unlock;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">success:</span><br><span class="line">	inet_csk_update_fastreuse(tb, sk);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 真正的将sk插入到哈希表的哈希桶的owners上，owners也是个哈希表 */</span></span><br><span class="line">	<span class="keyword">if</span> (!inet_csk(sk)-&gt;icsk_bind_hash)</span><br><span class="line">		inet_bind_hash(sk, tb, tb2, port);</span><br><span class="line">	WARN_ON(inet_csk(sk)-&gt;icsk_bind_hash != tb);</span><br><span class="line">	WARN_ON(inet_csk(sk)-&gt;icsk_bind2_hash != tb2);</span><br><span class="line">	ret = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">fail_unlock:</span><br><span class="line">	<span class="keyword">if</span> (ret) &#123;</span><br><span class="line">		<span class="comment">/* 失败了，但是bhash、bhash2之前可能创建了新哈希桶，那就释放下 */</span></span><br><span class="line">		<span class="keyword">if</span> (bhash_created)</span><br><span class="line">			inet_bind_bucket_destroy(hinfo-&gt;bind_bucket_cachep, tb);</span><br><span class="line">		<span class="keyword">if</span> (bhash2_created)</span><br><span class="line">			inet_bind2_bucket_destroy(hinfo-&gt;bind2_bucket_cachep, tb2);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 如果对head2已经加锁了，这里一定要解锁 */</span></span><br><span class="line">	<span class="keyword">if</span> (head2_lock_acquired)</span><br><span class="line">		spin_unlock(&amp;head2-&gt;lock);</span><br><span class="line"></span><br><span class="line">	spin_unlock_bh(&amp;head-&gt;lock);</span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL_GPL(inet_csk_get_port);</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>inet_csk_find_open_port在本地端口范围内随机挑选端口，同时在 bhash（端口维度）和 bhash2（端口+地址维度）上进行冲突检测，若检测通过，则 在持锁状态下返回对应的 hashbucket 和端口号，来保证后续 inet_csk_get_port() 绑定过程的原子性。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Find an open port number for the socket.  Returns with the</span></span><br><span class="line"><span class="comment"> * inet_bind_hashbucket locks held if successful.</span></span><br><span class="line"><span class="comment"> * 由 inet_csk_get_port 调用</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">struct</span> inet_bind_hashbucket *</span><br><span class="line"><span class="title function_">inet_csk_find_open_port</span><span class="params">(<span class="type">const</span> <span class="keyword">struct</span> sock *sk, <span class="keyword">struct</span> inet_bind_bucket **tb_ret,</span></span><br><span class="line"><span class="params">			<span class="keyword">struct</span> inet_bind2_bucket **tb2_ret,</span></span><br><span class="line"><span class="params">			<span class="keyword">struct</span> inet_bind_hashbucket **head2_ret, <span class="type">int</span> *port_ret)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_hashinfo</span> *<span class="title">hinfo</span> =</span> tcp_or_dccp_get_hashinfo(sk);</span><br><span class="line">	<span class="type">int</span> i, low, high, attempt_half, port, l3mdev;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_bind_hashbucket</span> *<span class="title">head</span>, *<span class="title">head2</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">net</span> *<span class="title">net</span> =</span> sock_net(sk);</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_bind2_bucket</span> *<span class="title">tb2</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inet_bind_bucket</span> *<span class="title">tb</span>;</span></span><br><span class="line">	u32 remaining, offset;</span><br><span class="line">	<span class="type">bool</span> relax = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">	l3mdev = inet_sk_bound_l3mdev(sk);</span><br><span class="line">ports_exhausted:</span><br><span class="line">	attempt_half = (sk-&gt;sk_reuse == SK_CAN_REUSE) ? <span class="number">1</span> : <span class="number">0</span>;</span><br><span class="line">other_half_scan:</span><br><span class="line">	inet_sk_get_local_port_range(sk, &amp;low, &amp;high);</span><br><span class="line">	high++; <span class="comment">/* [32768, 60999] -&gt; [32768, 61000[ */</span></span><br><span class="line">	<span class="keyword">if</span> (high - low &lt; <span class="number">4</span>)</span><br><span class="line">		attempt_half = <span class="number">0</span>;</span><br><span class="line">	<span class="keyword">if</span> (attempt_half) &#123;</span><br><span class="line">		<span class="type">int</span> half = low + (((high - low) &gt;&gt; <span class="number">2</span>) &lt;&lt; <span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (attempt_half == <span class="number">1</span>)</span><br><span class="line">			high = half;</span><br><span class="line">		<span class="keyword">else</span></span><br><span class="line">			low = half;</span><br><span class="line">	&#125;</span><br><span class="line">	remaining = high - low;</span><br><span class="line">	<span class="keyword">if</span> (likely(remaining &gt; <span class="number">1</span>))</span><br><span class="line">		remaining &amp;= ~<span class="number">1U</span>;</span><br><span class="line"></span><br><span class="line">	offset = get_random_u32_below(remaining);</span><br><span class="line">	<span class="comment">/* __inet_hash_connect() favors ports having @low parity</span></span><br><span class="line"><span class="comment">	 * We do the opposite to not pollute connect() users.</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	offset |= <span class="number">1U</span>;</span><br><span class="line"></span><br><span class="line">other_parity_scan:</span><br><span class="line">	port = low + offset;</span><br><span class="line">	<span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; remaining; i += <span class="number">2</span>, port += <span class="number">2</span>) &#123;</span><br><span class="line">		<span class="keyword">if</span> (unlikely(port &gt;= high))</span><br><span class="line">			port -= remaining;</span><br><span class="line">		<span class="keyword">if</span> (inet_is_local_reserved_port(net, port))</span><br><span class="line">			<span class="keyword">continue</span>;</span><br><span class="line">		head = &amp;hinfo-&gt;bhash[inet_bhashfn(net, port,</span><br><span class="line">						  hinfo-&gt;bhash_size)];</span><br><span class="line">		spin_lock_bh(&amp;head-&gt;lock);</span><br><span class="line">		<span class="keyword">if</span> (inet_use_bhash2_on_bind(sk)) &#123;</span><br><span class="line">			<span class="keyword">if</span> (inet_bhash2_addr_any_conflict(sk, port, l3mdev, relax, <span class="literal">false</span>))</span><br><span class="line">				<span class="keyword">goto</span> next_port;</span><br><span class="line">		&#125;</span><br><span class="line"></span><br><span class="line">		head2 = inet_bhashfn_portaddr(hinfo, sk, net, port);</span><br><span class="line">		spin_lock(&amp;head2-&gt;lock);</span><br><span class="line">		tb2 = inet_bind2_bucket_find(head2, net, port, l3mdev, sk);</span><br><span class="line">		inet_bind_bucket_for_each(tb, &amp;head-&gt;chain)</span><br><span class="line">			<span class="keyword">if</span> (inet_bind_bucket_match(tb, net, port, l3mdev)) &#123;</span><br><span class="line">				<span class="keyword">if</span> (!inet_csk_bind_conflict(sk, tb, tb2,</span><br><span class="line">							    relax, <span class="literal">false</span>))</span><br><span class="line">					<span class="keyword">goto</span> success;</span><br><span class="line">				spin_unlock(&amp;head2-&gt;lock);</span><br><span class="line">				<span class="keyword">goto</span> next_port;</span><br><span class="line">			&#125;</span><br><span class="line">		tb = <span class="literal">NULL</span>;</span><br><span class="line">		<span class="keyword">goto</span> success;</span><br><span class="line">next_port:</span><br><span class="line">		spin_unlock_bh(&amp;head-&gt;lock);</span><br><span class="line">		cond_resched();</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	offset--;</span><br><span class="line">	<span class="keyword">if</span> (!(offset &amp; <span class="number">1</span>))</span><br><span class="line">		<span class="keyword">goto</span> other_parity_scan;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (attempt_half == <span class="number">1</span>) &#123;</span><br><span class="line">		<span class="comment">/* OK we now try the upper half of the range */</span></span><br><span class="line">		attempt_half = <span class="number">2</span>;</span><br><span class="line">		<span class="keyword">goto</span> other_half_scan;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (READ_ONCE(net-&gt;ipv4.sysctl_ip_autobind_reuse) &amp;&amp; !relax) &#123;</span><br><span class="line">		<span class="comment">/* We still have a chance to connect to different destinations */</span></span><br><span class="line">		relax = <span class="literal">true</span>;</span><br><span class="line">		<span class="keyword">goto</span> ports_exhausted;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line">success:</span><br><span class="line">	*port_ret = port;</span><br><span class="line">	*tb_ret = tb;</span><br><span class="line">	*tb2_ret = tb2;</span><br><span class="line">	*head2_ret = head2;</span><br><span class="line">	<span class="keyword">return</span> head;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>bind() 在内核中首先校验地址合法性与权限，然后根据 socket 状态决定是否立即分配端口。端口绑定通过 bhash（端口维度）和 bhash2（地址+端口维度）进行冲突检测，并结合 SO_REUSEADDR&#x2F;SO_REUSEPORT&#x2F;fastreuse等策略决定是否允许共用端口。最终，socket 被安全地插入绑定哈希表，完成本地地址与端口的占用。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/socket/" rel="tag"># socket</a>
+              <a href="/tags/%E7%BD%91%E7%BB%9C/" rel="tag"># 网络</a>
+              <a href="/tags/bind/" rel="tag"># bind</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2025/12/13/socket%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/" rel="prev" title="socket系统调用">
+                  <i class="fa fa-angle-left"></i> socket系统调用
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2025/12/17/listen%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8/" rel="next" title="listen系统调用">
+                  listen系统调用 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2025 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">wangzhixin</span>
+  </div>
+<div class="busuanzi-count">
+    <span class="post-meta-item" id="busuanzi_container_site_uv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

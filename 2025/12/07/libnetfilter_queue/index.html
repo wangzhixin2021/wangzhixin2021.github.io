@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: dark)"><meta name="generator" content="Hexo 8.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":true,"version":"8.26.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"base16/onedark","dark":"base16/onedark"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":"mac"},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"/search.json","localsearch":{"enable":true,"top_n_per_article":1,"unescape":false,"preload":true,"highlight":true}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="学习使用libnetfilter_queue实现用户态放行、拦截指定数据包，并研究其底层源码实现。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="libnetfilter_queue">
+<meta property="og:url" content="http://example.com/2025/12/07/libnetfilter_queue/index.html">
+<meta property="og:site_name" content="积硅步，至千里">
+<meta property="og:description" content="学习使用libnetfilter_queue实现用户态放行、拦截指定数据包，并研究其底层源码实现。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2025-12-06T16:18:00.000Z">
+<meta property="article:modified_time" content="2026-01-05T14:36:34.204Z">
+<meta property="article:author" content="wangzhixin">
+<meta property="article:tag" content="hook">
+<meta property="article:tag" content="iptables">
+<meta property="article:tag" content="netfilter">
+<meta property="article:tag" content="nfqueue">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2025/12/07/libnetfilter_queue/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://example.com/2025/12/07/libnetfilter_queue/","path":"2025/12/07/libnetfilter_queue/","title":"libnetfilter_queue"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>libnetfilter_queue | 积硅步，至千里</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/motion.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hexo-generator-searchdb/1.5.0/search.js" integrity="sha256-xFC6PJ82SL9b3WkGjFavNiA9gm5z6UBxWPiu4CYjptg=" crossorigin="anonymous" defer></script>
+<script src="/js/third-party/search/local-search.js" defer></script>
+
+
+
+
+
+
+
+  
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">积硅步，至千里</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+      <div class="search-header">
+        <span class="search-icon">
+          <i class="fa fa-search"></i>
+        </span>
+        <div class="search-input-container">
+          <input autocomplete="off" autocapitalize="off" maxlength="80"
+                placeholder="搜索..." spellcheck="false"
+                type="search" class="search-input">
+        </div>
+        <span class="popup-btn-close" role="button">
+          <i class="fa fa-times-circle"></i>
+        </span>
+      </div>
+      <div class="search-result-container">
+        <div class="search-result-icon">
+          <i class="fa fa-spinner fa-pulse fa-5x"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#libnetfilter-queue%E4%BB%8B%E7%BB%8D"><span class="nav-number">1.</span> <span class="nav-text">libnetfilter_queue介绍</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#iptables-%E4%B8%8B%E5%8F%91%E8%A7%84%E5%88%99"><span class="nav-number">2.</span> <span class="nav-text">iptables 下发规则</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#iptables%E7%94%A8%E6%88%B7%E6%80%81%E8%B0%83%E7%94%A8%E6%B5%81%E7%A8%8B"><span class="nav-number">2.1.</span> <span class="nav-text">iptables用户态调用流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#iptables%E5%86%85%E6%A0%B8%E6%80%81%E8%B0%83%E7%94%A8%E6%B5%81%E7%A8%8B"><span class="nav-number">2.2.</span> <span class="nav-text">iptables内核态调用流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%96%91%E9%97%AE%E7%82%B9"><span class="nav-number">2.3.</span> <span class="nav-text">疑问点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#skb-%E5%A6%82%E4%BD%95%E5%9C%A8-INPUT-%E9%93%BE%E5%91%BD%E4%B8%AD-NFQUEUE"><span class="nav-number">3.</span> <span class="nav-text">skb 如何在 INPUT 链命中 NFQUEUE</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%A8%E6%88%B7%E6%80%81%E7%A8%8B%E5%BA%8F%E6%98%AF%E5%A6%82%E4%BD%95%E8%A3%81%E5%86%B3%E6%95%B0%E6%8D%AE%E5%8C%85%E7%9A%84"><span class="nav-number">4.</span> <span class="nav-text">用户态程序是如何裁决数据包的</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">wangzhixin</p>
+  <div class="site-description" itemprop="description">Linux C/C++</div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">12</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2025/12/07/libnetfilter_queue/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="wangzhixin">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="积硅步，至千里">
+      <meta itemprop="description" content="Linux C/C++">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="libnetfilter_queue | 积硅步，至千里">
+      <meta itemprop="description" content="学习使用libnetfilter_queue实现用户态放行、拦截指定数据包，并研究其底层源码实现。">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          libnetfilter_queue
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2025-12-07 00:18:00" itemprop="dateCreated datePublished" datetime="2025-12-07T00:18:00+08:00">2025-12-07</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar-check"></i>
+      </span>
+      <span class="post-meta-item-text">更新于</span>
+      <time title="修改时间：2026-01-05 22:36:34" itemprop="dateModified" datetime="2026-01-05T22:36:34+08:00">2026-01-05</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/linux6-6%E5%86%85%E6%A0%B8/" itemprop="url" rel="index"><span itemprop="name">linux6.6内核</span></a>
+        </span>
+    </span>
+
+  
+    <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv">
+      <span class="post-meta-item-icon">
+        <i class="far fa-eye"></i>
+      </span>
+      <span class="post-meta-item-text">阅读次数：</span>
+      <span id="busuanzi_value_page_pv"></span>
+    </span>
+</div>
+
+            <div class="post-description">学习使用libnetfilter_queue实现用户态放行、拦截指定数据包，并研究其底层源码实现。</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h2 id="libnetfilter-queue介绍"><a href="#libnetfilter-queue介绍" class="headerlink" title="libnetfilter_queue介绍"></a>libnetfilter_queue介绍</h2><p>在 <strong>Linux</strong> 防火墙中，<strong>iptables</strong> 本身并不处理数据包，它只是一个“规则描述工具”。真正的数据包裁决发生在内核 <strong>Netfilter</strong> 框架中。<br>当我们通过iptables使用 -j NFQUEUE 参数下发规则时，本质上是告诉内核：匹配到该规则的 skb 不要立刻放行或拦截，而是进入NFQUEUE子系统，送往用户态程序，等待用户态来决定如何处理这个数据包。<br>而<strong>libnetfilter_queue</strong> 就是 <strong>Linux</strong> 下 <strong>Netfilter</strong> 子系统提供的一个用户态开发库，专门用于用户态接收、分析、修改、处理，再决定是否放行&#x2F;拦截网络数据包，它是实现 NFQUEUE 功能的核心组件。</p>
+<h2 id="iptables-下发规则"><a href="#iptables-下发规则" class="headerlink" title="iptables 下发规则"></a>iptables 下发规则</h2><p>iptables规则下发到nfqueue，一般使用方法为：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">iptables -I INPUT -j NFQUEUE --queue-num 0 </span><br></pre></td></tr></table></figure>
+
+<p>简而言之：<br>就是下发了一条规则，向内核 filter表(默认)，注册到了INPUT链，当有数据包到INPUT链，转交给NFQUEUE子系统进行处理，并且入0号队列</p>
+<h3 id="iptables用户态调用流程"><a href="#iptables用户态调用流程" class="headerlink" title="iptables用户态调用流程"></a>iptables用户态调用流程</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">iptables()</span><br><span class="line"> └── do_command()</span><br><span class="line">      └── do_command4()</span><br><span class="line">           └── iptc_commit()</span><br><span class="line">                └── setsockopt(fd, SOL_IP, IPT_SO_SET_REPLACE, ...)</span><br></pre></td></tr></table></figure>
+
+<p>用户态主要做的就是： </p>
+<ol>
+<li><p>构造整张规则表的数据<br>iptables 在用户态内部并不是“只构造一条规则”，而是会：解析当前系统中 <strong>已有的全部规则</strong>，然后将新规则插入到对应链（这里是 <strong>INPUT</strong>），再重新生成一整张完整的规则表数据结构，也就是说：iptables 在用户态做的是“整表重建”，不是“单条规则增量修改”。</p>
+</li>
+<li><p>通过 setsockopt 下发整张规则表给内核<br>把包含所有链（INPUT、OUTPUT、FORWARD）所有规则、所有 match、所有 target（包括 NFQUEUE）的一整块内存，一次性发送给内核。然后iptables使命就结束了，后续的所有规则匹配与数据包处理，全部发生在内核中，iptables进程是不会参与任何一个数据包的处理的。</p>
+</li>
+</ol>
+<h3 id="iptables内核态调用流程"><a href="#iptables内核态调用流程" class="headerlink" title="iptables内核态调用流程"></a>iptables内核态调用流程</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">__x64_sys_setsockopt()</span><br><span class="line"> └── do_sys_setsockopt()</span><br><span class="line">      └── __sys_setsockopt()</span><br><span class="line">          └── raw_setsockopt()</span><br><span class="line">               └── ip_setsockopt()</span><br><span class="line">                    └── nf_setsockopt()</span><br><span class="line">                        └── do_ipt_set_ctl()</span><br><span class="line">                             └── do_replace()</span><br><span class="line">                                  └── __do_replace()</span><br></pre></td></tr></table></figure>
+
+<p>内核态主要做的就是：</p>
+<ol>
+<li>为整张规则表分配内核内存</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">newinfo = xt_alloc_table_info(tmp.size);</span><br><span class="line"><span class="keyword">if</span> (!newinfo)</span><br><span class="line">	<span class="keyword">return</span> -ENOMEM;</span><br></pre></td></tr></table></figure>
+<ol start="2">
+<li>再将所有规则内容完整拷贝进内核</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 从用户态拷贝 规则表头 */</span></span><br><span class="line"><span class="keyword">if</span> (copy_from_sockptr(&amp;tmp, arg, <span class="keyword">sizeof</span>(tmp)) != <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">return</span> -EFAULT;</span><br><span class="line"></span><br><span class="line"> <span class="comment">/* 从用户态拷贝 真正的规则内容 进内核 */</span></span><br><span class="line"><span class="keyword">if</span> (copy_from_sockptr_offset(loc_cpu_entry, arg, <span class="keyword">sizeof</span>(tmp),</span><br><span class="line">		tmp.size) != <span class="number">0</span>) &#123;</span><br><span class="line">	ret = -EFAULT;</span><br><span class="line">	<span class="keyword">goto</span> free_newinfo;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<ol start="3">
+<li>解析并绑定目标（NFQUEUE 关键点）</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"> <span class="comment">/* 规则 翻译 和 校验 */</span></span><br><span class="line">ret = translate_table(net, newinfo, loc_cpu_entry, &amp;tmp);</span><br><span class="line"><span class="keyword">if</span> (ret != <span class="number">0</span>)</span><br><span class="line">	<span class="keyword">goto</span> free_newinfo;</span><br><span class="line"></span><br><span class="line"> <span class="comment">/* 绑定target */</span></span><br><span class="line">t = ipt_get_target(e);</span><br><span class="line">target = xt_request_find_target(NFPROTO_IPV4, t-&gt;u.user.name,</span><br><span class="line">				t-&gt;u.user.revision);</span><br><span class="line"><span class="keyword">if</span> (IS_ERR(target)) &#123;</span><br><span class="line">	ret = PTR_ERR(target);</span><br><span class="line">	<span class="keyword">goto</span> cleanup_matches;</span><br><span class="line">&#125;</span><br><span class="line">t-&gt;u.kernel.target = target;</span><br></pre></td></tr></table></figure>
+<ol start="4">
+<li>替换旧规则表</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Ensure contents of newinfo are visible before assigning to</span></span><br><span class="line"><span class="comment"> * private.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">smp_wmb();</span><br><span class="line">table-&gt;private = newinfo;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* make sure all cpus see new -&gt;private value */</span></span><br><span class="line">smp_mb();</span><br></pre></td></tr></table></figure>
+
+<h3 id="疑问点"><a href="#疑问点" class="headerlink" title="疑问点"></a>疑问点</h3><ol>
+<li><p>为什么“哪怕只加一条规则”，也必须整体替换？<br>iptables 的规则表不是链表，而是“连续内存 + 偏移跳转”的结构。</p>
+</li>
+<li><p>为什么会整体替换呢？<br>因为Netfilter 规则是在“数据包热路径”上被每秒几十万次并发读取的，规则表是“每个包都要读的共享结构”<br>只能“无锁读取 + 整体原子切换”，不能“在线修改细节”，这样能最大程度提高性能。</p>
+</li>
+</ol>
+<h2 id="skb-如何在-INPUT-链命中-NFQUEUE"><a href="#skb-如何在-INPUT-链命中-NFQUEUE" class="headerlink" title="skb 如何在 INPUT 链命中 NFQUEUE"></a>skb 如何在 INPUT 链命中 NFQUEUE</h2><p>一个数据包从网卡进入 Linux 内核后，首先进入的是软中断收包流程：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">网卡中断</span><br><span class="line"> └── napi_poll()</span><br><span class="line">     └── 驱动收包</span><br><span class="line">          └── __netif_receive_skb_core()</span><br><span class="line">              └── ip_rcv()</span><br><span class="line">                   └── dst_input()</span><br><span class="line">                       └── ip_local_deliver()</span><br><span class="line">                            └── LOCAL_IN NF_HOOK()</span><br><span class="line">                                └── nf_hook()</span><br><span class="line">                                     └── nf_hook_slow()</span><br><span class="line">                                          └── nf_hook_entry_hookfn()</span><br><span class="line">                                              └── ipt_do_table()</span><br><span class="line">                                                  └── nfqueue_tg()                 </span><br></pre></td></tr></table></figure>
+
+<p>nfqueue_tg实现如下，其实就是置NF_QUEUE，并且把queuenum也返出去</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> NF_QUEUE_NR(x) ((((x) &lt;&lt; 16) &amp; NF_VERDICT_QMASK) | NF_QUEUE)</span></span><br><span class="line"><span class="comment">// Expands to</span></span><br><span class="line">((((tinfo-&gt;queuenum) &lt;&lt; <span class="number">16</span>) &amp; <span class="number">0xffff0000</span>) | <span class="number">3</span>)</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">unsigned</span> <span class="type">int</span></span><br><span class="line"><span class="title function_">nfqueue_tg</span><span class="params">(<span class="keyword">struct</span> sk_buff *skb, <span class="type">const</span> <span class="keyword">struct</span> xt_action_param *par)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">xt_NFQ_info</span> *<span class="title">tinfo</span> =</span> par-&gt;targinfo;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> NF_QUEUE_NR(tinfo-&gt;queuenum);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+<p>如果命中了NFQUEUE的规则，那返回的verdict，前两字节是命中规则的queuenum号，后两字节是标识NF_QUEUE标志，标识该数据包要送往NFQUEUE等待裁决，而非在这里直接放行或拦截</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nf_hook_slow</span><span class="params">(<span class="keyword">struct</span> sk_buff *skb, <span class="keyword">struct</span> nf_hook_state *state,</span></span><br><span class="line"><span class="params">		 <span class="type">const</span> <span class="keyword">struct</span> nf_hook_entries *e, <span class="type">unsigned</span> <span class="type">int</span> s)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">int</span> verdict;</span><br><span class="line">	<span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> (; s &lt; e-&gt;num_hook_entries; s++) &#123;</span><br><span class="line">		verdict = nf_hook_entry_hookfn(&amp;e-&gt;hooks[s], skb, state);</span><br><span class="line">		<span class="keyword">switch</span> (verdict &amp; NF_VERDICT_MASK) &#123;</span><br><span class="line">		<span class="comment">/* 直接放行 */</span></span><br><span class="line">		<span class="keyword">case</span> NF_ACCEPT:</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		<span class="comment">/* 直接丢弃 */</span></span><br><span class="line">		<span class="keyword">case</span> NF_DROP:</span><br><span class="line">			kfree_skb_reason(skb,</span><br><span class="line">					 SKB_DROP_REASON_NETFILTER_DROP);</span><br><span class="line">			ret = NF_DROP_GETERR(verdict);</span><br><span class="line">			<span class="keyword">if</span> (ret == <span class="number">0</span>)</span><br><span class="line">				ret = -EPERM;</span><br><span class="line">			<span class="keyword">return</span> ret;</span><br><span class="line">		<span class="comment">/* 进入nfqueue，由用户态程序决定是否放行 */</span></span><br><span class="line">		<span class="keyword">case</span> NF_QUEUE:</span><br><span class="line">			ret = nf_queue(skb, state, s, verdict);</span><br><span class="line">			<span class="keyword">if</span> (ret == <span class="number">1</span>)</span><br><span class="line">				<span class="keyword">continue</span>;</span><br><span class="line">			<span class="keyword">return</span> ret;</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			<span class="comment">/* Implicit handling for NF_STOLEN, as well as any other</span></span><br><span class="line"><span class="comment">			 * non conventional verdicts.</span></span><br><span class="line"><span class="comment">			 */</span></span><br><span class="line">			<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>再看nf_queue的调用逻辑：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">nf_queue()</span><br><span class="line">└── __nf_queue()</span><br><span class="line">    └── nfqnl_enqueue_packet()</span><br></pre></td></tr></table></figure>
+
+<p>入队其实就是根据传入的queuenum号，先找到对应的实例instance</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* rcu_read_lock()ed by nf_hook_thresh */</span></span><br><span class="line"><span class="built_in">queue</span> = instance_lookup(q, queuenum);</span><br><span class="line"><span class="keyword">if</span> (!<span class="built_in">queue</span>)</span><br><span class="line">	<span class="keyword">return</span> -ESRCH;</span><br></pre></td></tr></table></figure>
+
+<p>然后将包信息通过netlink发送给用户态进程，发送失败，直接返回；发送成功，则将这个entry加入到队列实例链表上，等待用户态裁决</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* nfnetlink_unicast will either free the nskb or add it to a socket </span></span><br><span class="line"><span class="comment"> * netlink 把信息发往用户态 */</span></span><br><span class="line">err = nfnetlink_unicast(nskb, net, <span class="built_in">queue</span>-&gt;peer_portid);</span><br><span class="line"><span class="keyword">if</span> (err &lt; <span class="number">0</span>) &#123;</span><br><span class="line">	<span class="keyword">if</span> (<span class="built_in">queue</span>-&gt;flags &amp; NFQA_CFG_F_FAIL_OPEN) &#123;</span><br><span class="line">		failopen = <span class="number">1</span>;</span><br><span class="line">		err = <span class="number">0</span>;</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		<span class="built_in">queue</span>-&gt;queue_user_dropped++;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">goto</span> err_out_unlock;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 发往用户态成功了，将这个entry暂存到链表里去，到时候好找 */</span></span><br><span class="line">__enqueue_entry(<span class="built_in">queue</span>, entry);</span><br></pre></td></tr></table></figure>
+
+
+<h2 id="用户态程序是如何裁决数据包的"><a href="#用户态程序是如何裁决数据包的" class="headerlink" title="用户态程序是如何裁决数据包的"></a>用户态程序是如何裁决数据包的</h2><p>基本流程：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">nfq_open()</span><br><span class="line"> └── nfq_bind_pf(AF_INET)</span><br><span class="line">     └── nfq_create_queue(queue_num, callback)</span><br><span class="line">         └── nfq_set_mode(NFQNL_COPY_PACKET)</span><br><span class="line">             └── recv(fd)</span><br><span class="line">                 └── nfq_handle_packet()</span><br><span class="line">                     └── 回调函数 callback()</span><br><span class="line">                          └── nfq_set_verdict()</span><br></pre></td></tr></table></figure>
+
+<p>代码实现：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdlib.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;unistd.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;errno.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;string.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;limits.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/socket.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;arpa/inet.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 注意下这个头文件需要在arpa/inet.h之后包含，否则会报in_addr重定义 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;linux/netfilter.h&gt;</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;libnetfilter_queue/libnetfilter_queue.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 队列序号 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> QUEUE_NUM   1</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 注意我们是hook input链，针对udp大包，需要 USHRT_MAX 才能完全存储 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> MAX_BUF     USHRT_MAX</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> QUEUE_MAXLEN 4096</span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">cb</span><span class="params">(<span class="keyword">struct</span> nfq_q_handle *qh, <span class="keyword">struct</span> nfgenmsg *nfmsg,</span></span><br><span class="line"><span class="params">              <span class="keyword">struct</span> nfq_data *nfa, <span class="type">void</span> *data)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span> *payload = <span class="literal">NULL</span>;</span><br><span class="line">    <span class="type">int</span> len = nfq_get_payload(nfa, &amp;payload);</span><br><span class="line"></span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;got packet, size = %d\n&quot;</span>, len);</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">nfqnl_msg_packet_hdr</span> *<span class="title">ph</span> =</span> nfq_get_msg_packet_hdr(nfa);</span><br><span class="line">    <span class="keyword">if</span> (!ph) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;nfq_get_msg_packet_hdr failed\n&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">-1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 这里要注意，需要转成主机序 */</span></span><br><span class="line">    <span class="type">uint32_t</span> id = ntohl(ph-&gt;packet_id);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> nfq_set_verdict(qh, id, NF_ACCEPT, <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">()</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">nfq_handle</span> *<span class="title">h</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">nfq_q_handle</span> *<span class="title">qh</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line">    <span class="type">int</span> fd = <span class="number">-1</span>;</span><br><span class="line">    <span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">    <span class="type">char</span> buf[MAX_BUF] __attribute__ ((aligned));</span><br><span class="line"></span><br><span class="line">    h = nfq_open();</span><br><span class="line">    <span class="keyword">if</span> (!h) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;nfq_open failed\n&quot;</span>);</span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (nfq_unbind_pf(h, AF_INET) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;nfq_unbind_pf failed\n&quot;</span>);</span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (nfq_bind_pf(h, AF_INET) &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;nfq_bind_pf failed\n&quot;</span>);</span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    qh = nfq_create_queue(h, QUEUE_NUM, &amp;cb, <span class="literal">NULL</span>);</span><br><span class="line">    <span class="keyword">if</span> (!qh) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;nfq_create_queue failed\n&quot;</span>);</span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 拷贝整个数据包 */</span></span><br><span class="line">    ret = nfq_set_mode(qh, NFQNL_COPY_PACKET, <span class="number">0xffff</span>);</span><br><span class="line">    <span class="keyword">if</span> (ret &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;nfq_set_mode failed\n&quot;</span>);</span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 调大内核 nfqueue 环形队列长度，</span></span><br><span class="line"><span class="comment">     * 这表示内核最大能缓存多少个尚未被用户态处理的包 */</span></span><br><span class="line">    ret = nfq_set_queue_maxlen(qh, QUEUE_MAXLEN);</span><br><span class="line">    <span class="keyword">if</span> (ret &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;nfq_set_queue_maxlen failed\n&quot;</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    fd = nfq_fd(h);</span><br><span class="line">    <span class="keyword">if</span> (fd &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;nfq_fd failed\n&quot;</span>);</span><br><span class="line">        <span class="keyword">goto</span> out;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="built_in">printf</span>(<span class="string">&quot;nfqueue started, queue=%d\n&quot;</span>, QUEUE_NUM);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">        <span class="type">int</span> n = recv(fd, buf, <span class="keyword">sizeof</span>(buf), <span class="number">0</span>);</span><br><span class="line">        <span class="keyword">if</span> (n &lt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">if</span> (errno == EINTR)</span><br><span class="line">                <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">            perror(<span class="string">&quot;recv&quot;</span>);</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (n == <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="built_in">printf</span>(<span class="string">&quot;recv returned 0\n&quot;</span>);</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        ret = nfq_handle_packet(h, buf, n);</span><br><span class="line">        <span class="keyword">if</span> (ret &lt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="built_in">printf</span>(<span class="string">&quot;nfq_handle_packet error: %d\n&quot;</span>, ret);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">out:</span><br><span class="line">    <span class="keyword">if</span> (qh)</span><br><span class="line">        nfq_destroy_queue(qh);</span><br><span class="line">    <span class="keyword">if</span> (h)</span><br><span class="line">        nfq_close(h);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>裁决下发的函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nfq_set_verdict</span><span class="params">(<span class="keyword">struct</span> nfq_q_handle *qh, <span class="type">uint32_t</span> id,</span></span><br><span class="line"><span class="params">		    <span class="type">uint32_t</span> verdict, <span class="type">uint32_t</span> data_len,</span></span><br><span class="line"><span class="params">		    <span class="type">const</span> <span class="type">unsigned</span> <span class="type">char</span> *buf)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> __set_verdict(qh, id, verdict, <span class="number">0</span>, <span class="number">0</span>, data_len, buf,</span><br><span class="line">						NFQNL_MSG_VERDICT);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对应内核处理函数：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">nfqnl_recv_verdict()</span><br><span class="line"> └── nfqnl_reinject()</span><br><span class="line">      └── nf_reinject()</span><br></pre></td></tr></table></figure>
+
+<p>这里将决定数据包最终的命运：放行 or 拦截 or 再次入队</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">nf_reinject</span><span class="params">(<span class="keyword">struct</span> nf_queue_entry *entry, <span class="type">unsigned</span> <span class="type">int</span> verdict)</span></span><br><span class="line">&#123;</span><br><span class="line">  ......</span><br><span class="line"></span><br><span class="line">	<span class="keyword">switch</span> (verdict &amp; NF_VERDICT_MASK) &#123;</span><br><span class="line">	<span class="keyword">case</span> NF_ACCEPT:</span><br><span class="line">	<span class="keyword">case</span> NF_STOP:</span><br><span class="line">		<span class="comment">/* 放行啦，继续执行其后续流程，送往协议栈上层处理函数，ip_local_deliver_finish */</span></span><br><span class="line">		local_bh_disable();</span><br><span class="line">		entry-&gt;state.okfn(entry-&gt;state.net, entry-&gt;state.sk, skb);</span><br><span class="line">		local_bh_enable();</span><br><span class="line">		<span class="keyword">break</span>;</span><br><span class="line">	<span class="keyword">case</span> NF_QUEUE:</span><br><span class="line">		<span class="comment">/* 太扯了，又让我再次入队 */</span></span><br><span class="line">		err = nf_queue(skb, &amp;entry-&gt;state, i, verdict);</span><br><span class="line">		<span class="keyword">if</span> (err == <span class="number">1</span>)</span><br><span class="line">			<span class="keyword">goto</span> next_hook;</span><br><span class="line">		<span class="keyword">break</span>;</span><br><span class="line">	<span class="keyword">case</span> NF_STOLEN:</span><br><span class="line">		<span class="keyword">break</span>;</span><br><span class="line">	<span class="keyword">default</span>:</span><br><span class="line">		<span class="comment">/* 其它，比如 drop，那就直接释放数据包即可 */</span></span><br><span class="line">		kfree_skb(skb);</span><br><span class="line">	&#125;</span><br><span class="line"> </span><br><span class="line">  ......</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>基本处理流程大体如上。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E7%BD%91%E7%BB%9C/" rel="tag"># 网络</a>
+              <a href="/tags/netfilter/" rel="tag"># netfilter</a>
+              <a href="/tags/nfqueue/" rel="tag"># nfqueue</a>
+              <a href="/tags/iptables/" rel="tag"># iptables</a>
+              <a href="/tags/hook/" rel="tag"># hook</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+            </div>
+            <div class="post-nav-item">
+                <a href="/2025/12/09/syscall%E8%B0%83%E7%94%A8%E6%B5%81%E7%A8%8B%E5%88%86%E6%9E%90/" rel="next" title="syscall调用流程分析">
+                  syscall调用流程分析 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2025 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">wangzhixin</span>
+  </div>
+<div class="busuanzi-count">
+    <span class="post-meta-item" id="busuanzi_container_site_uv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
