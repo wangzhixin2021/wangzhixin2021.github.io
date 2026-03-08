@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#222" media="(prefers-color-scheme: dark)"><meta name="generator" content="Hexo 8.1.1">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.1.1/animate.min.css" integrity="sha256-PR7ttpcvz8qrF57fur/yAx1qXMFJeJFiA6pSzWi0OIE=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"example.com","root":"/","images":"/images","scheme":"Muse","darkmode":true,"version":"8.26.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"base16/onedark","dark":"base16/onedark"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":"mac"},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":true,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"/search.json","localsearch":{"enable":true,"top_n_per_article":1,"unescape":false,"preload":true,"highlight":true}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="我们在写网络编程时，关闭连接时都要使用close来进行关闭，我们看下close做了些什么。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="TCP四次挥手-close（一）">
+<meta property="og:url" content="http://example.com/2026/03/08/TCP%E5%9B%9B%E6%AC%A1%E6%8C%A5%E6%89%8B-close%EF%BC%88%E4%B8%80%EF%BC%89/index.html">
+<meta property="og:site_name" content="积硅步，至千里">
+<meta property="og:description" content="我们在写网络编程时，关闭连接时都要使用close来进行关闭，我们看下close做了些什么。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-03-08T14:50:20.000Z">
+<meta property="article:modified_time" content="2026-03-08T14:40:16.622Z">
+<meta property="article:author" content="wangzhixin">
+<meta property="article:tag" content="close">
+<meta property="article:tag" content="socket">
+<meta property="article:tag" content="tcp短连">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://example.com/2026/03/08/TCP%E5%9B%9B%E6%AC%A1%E6%8C%A5%E6%89%8B-close%EF%BC%88%E4%B8%80%EF%BC%89/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://example.com/2026/03/08/TCP%E5%9B%9B%E6%AC%A1%E6%8C%A5%E6%89%8B-close%EF%BC%88%E4%B8%80%EF%BC%89/","path":"2026/03/08/TCP四次挥手-close（一）/","title":"TCP四次挥手-close（一）"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>TCP四次挥手-close（一） | 积硅步，至千里</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/motion.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hexo-generator-searchdb/1.5.0/search.js" integrity="sha256-xFC6PJ82SL9b3WkGjFavNiA9gm5z6UBxWPiu4CYjptg=" crossorigin="anonymous" defer></script>
+<script src="/js/third-party/search/local-search.js" defer></script>
+
+
+
+
+
+
+
+  
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" class="use-motion">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">积硅步，至千里</p>
+      <i class="logo-line"></i>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+      <div class="search-header">
+        <span class="search-icon">
+          <i class="fa fa-search"></i>
+        </span>
+        <div class="search-input-container">
+          <input autocomplete="off" autocapitalize="off" maxlength="80"
+                placeholder="搜索..." spellcheck="false"
+                type="search" class="search-input">
+        </div>
+        <span class="popup-btn-close" role="button">
+          <i class="fa fa-times-circle"></i>
+        </span>
+      </div>
+      <div class="search-result-container">
+        <div class="search-result-icon">
+          <i class="fa fa-spinner fa-pulse fa-5x"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#close%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8"><span class="nav-number">1.</span> <span class="nav-text">close系统调用</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">wangzhixin</p>
+  <div class="site-description" itemprop="description">Linux C/C++</div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">14</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2026/03/08/TCP%E5%9B%9B%E6%AC%A1%E6%8C%A5%E6%89%8B-close%EF%BC%88%E4%B8%80%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="wangzhixin">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="积硅步，至千里">
+      <meta itemprop="description" content="Linux C/C++">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="TCP四次挥手-close（一） | 积硅步，至千里">
+      <meta itemprop="description" content="我们在写网络编程时，关闭连接时都要使用close来进行关闭，我们看下close做了些什么。">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          TCP四次挥手-close（一）
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+      
+
+      <time title="创建时间：2026-03-08 22:50:20 / 修改时间：22:40:16" itemprop="dateCreated datePublished" datetime="2026-03-08T22:50:20+08:00">2026-03-08</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/linux6-6%E5%86%85%E6%A0%B8/" itemprop="url" rel="index"><span itemprop="name">linux6.6内核</span></a>
+        </span>
+    </span>
+
+  
+    <span class="post-meta-item" title="阅读次数" id="busuanzi_container_page_pv">
+      <span class="post-meta-item-icon">
+        <i class="far fa-eye"></i>
+      </span>
+      <span class="post-meta-item-text">阅读次数：</span>
+      <span id="busuanzi_value_page_pv"></span>
+    </span>
+</div>
+
+            <div class="post-description">我们在写网络编程时，关闭连接时都要使用close来进行关闭，我们看下close做了些什么。</div>
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h2 id="close系统调用"><a href="#close系统调用" class="headerlink" title="close系统调用"></a>close系统调用</h2><p>我们首先来看下close系统调用的入口，可以看到__do_sys_close，首先通过传入的fd,调用<code>close_fd_get_file</code>拿到其对应的file结构。调用<code>flip_flush</code>进一步调用具体文件类型在 file_operations 中注册的 flush 回调（file-&gt;f_op-&gt;flush），从而执行与 进程关闭该 fd 相关的清理逻辑。<code>__fput_sync</code>会减 file 的引用计数。当引用计数降为 0 时，VFS 才会真正释放该文件对象，并调用 file_operations-&gt;release，对于 socket 来说最终会进入 sock_release，并进一步执行 tcp_close 完成 TCP 连接的真正关闭。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * Careful here! We test whether the file pointer is NULL before</span></span><br><span class="line"><span class="comment"> * releasing the fd. This ensures that one clone task can&#x27;t release</span></span><br><span class="line"><span class="comment"> * an fd while another clone is opening it.</span></span><br><span class="line"><span class="comment"> * __do_sys_close</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">SYSCALL_DEFINE1(close, <span class="type">unsigned</span> <span class="type">int</span>, fd)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> retval;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">file</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 根据fd拿到对应的file结构 */</span></span><br><span class="line">	file = close_fd_get_file(fd);</span><br><span class="line">	<span class="keyword">if</span> (!file)</span><br><span class="line">		<span class="keyword">return</span> -EBADF;</span><br><span class="line"></span><br><span class="line">	retval = filp_flush(file, current-&gt;files);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * We&#x27;re returning to user space. Don&#x27;t bother</span></span><br><span class="line"><span class="comment">	 * with any delayed fput() cases.</span></span><br><span class="line"><span class="comment">	 * 这里面会进行socket的具体关闭操作</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	__fput_sync(file);</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* can&#x27;t restart close syscall because file table entry was cleared */</span></span><br><span class="line">	<span class="keyword">if</span> (unlikely(retval == -ERESTARTSYS ||</span><br><span class="line">		     retval == -ERESTARTNOINTR ||</span><br><span class="line">		     retval == -ERESTARTNOHAND ||</span><br><span class="line">		     retval == -ERESTART_RESTARTBLOCK))</span><br><span class="line">		retval = -EINTR;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> retval;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>close_fd_get_file</code>从当前进程的pcb的files里取出fd对应的文件对象。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * variant of close_fd that gets a ref on the file for later fput.</span></span><br><span class="line"><span class="comment"> * The caller must ensure that filp_close() called on the file.</span></span><br><span class="line"><span class="comment"> * 由 __do_sys_close 调用，</span></span><br><span class="line"><span class="comment"> * 从当前进程的pcb的files里取出fd对应的文件对象</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">struct</span> file *<span class="title function_">close_fd_get_file</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> fd)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">files_struct</span> *<span class="title">files</span> =</span> current-&gt;files;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">file</span>;</span></span><br><span class="line"></span><br><span class="line">	spin_lock(&amp;files-&gt;file_lock);</span><br><span class="line">	<span class="comment">/* 取出fd对应的file，并将files的fd索引置空、fd索引置为未使用状态 */</span></span><br><span class="line">	file = pick_file(files, fd);</span><br><span class="line">	spin_unlock(&amp;files-&gt;file_lock);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> file;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>pick_file</code>从pcb的fdt上将fd对应的文件对象取出，并从fdt的fd位置置为空、fd置为未使用状态</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * pick_file - return file associatd with fd</span></span><br><span class="line"><span class="comment"> * @files: file struct to retrieve file from</span></span><br><span class="line"><span class="comment"> * @fd: file descriptor to retrieve file for</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * Context: files_lock must be held.</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * Returns: The file associated with @fd (NULL if @fd is not open)</span></span><br><span class="line"><span class="comment"> * 由 close_fd_get_file 调用，</span></span><br><span class="line"><span class="comment"> * 从pcb的fdt上将fd对应的文件对象取出，并从fdt的fd位置置为空、fd置为未使用状态</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">struct</span> file *<span class="title function_">pick_file</span><span class="params">(<span class="keyword">struct</span> files_struct *files, <span class="type">unsigned</span> fd)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">fdtable</span> *<span class="title">fdt</span> =</span> files_fdtable(files);</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">file</span> *<span class="title">file</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 如果fd超出了最大的fd,那传入的是个无效值 */</span></span><br><span class="line">	<span class="keyword">if</span> (fd &gt;= fdt-&gt;max_fds)</span><br><span class="line">		<span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">	fd = array_index_nospec(fd, fdt-&gt;max_fds);</span><br><span class="line">	<span class="comment">/* 从fdtable上取出索引为fd的file结构 */</span></span><br><span class="line">	file = fdt-&gt;fd[fd];</span><br><span class="line">	<span class="keyword">if</span> (file) &#123;</span><br><span class="line">		<span class="comment">/* 将fdtable上索引为fd的file结构置为空 */</span></span><br><span class="line">		rcu_assign_pointer(fdt-&gt;fd[fd], <span class="literal">NULL</span>);</span><br><span class="line">		<span class="comment">/* 释放 */</span></span><br><span class="line">		__put_unused_fd(files, fd);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> file;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 pick_file 、 put_unused_fd 调用，</span></span><br><span class="line"><span class="comment"> * 将fd索引置为未使用状态，并检查是否需要更新 next_fd */</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> __put_unused_fd(<span class="keyword">struct</span> files_struct *files, <span class="type">unsigned</span> <span class="type">int</span> fd)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">fdtable</span> *<span class="title">fdt</span> =</span> files_fdtable(files);</span><br><span class="line">	__clear_open_fd(fd, fdt);</span><br><span class="line">	<span class="comment">/* 尽可能让新fd更小，以便下次分配时能复用 */</span></span><br><span class="line">	<span class="keyword">if</span> (fd &lt; files-&gt;next_fd)</span><br><span class="line">		files-&gt;next_fd = fd;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>filp_flush 的作用并不是关闭底层对象，而是清理 与当前进程绑定 的 fd 相关状态（如记录锁和通知机制），真正销毁文件对象并释放资源是在随后 __fput_sync 触发的 file_operations-&gt;release 中完成的，对于 socket 来说，TCP 连接的关闭（FIN 发送、状态机转换）发生在 release 阶段，而不是 flush 阶段。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * &quot;id&quot; is the POSIX thread ID. We use the</span></span><br><span class="line"><span class="comment"> * files pointer for this..</span></span><br><span class="line"><span class="comment"> * 由 __do_sys_close 调用，</span></span><br><span class="line"><span class="comment"> * filp_flush 的作用并不是关闭底层对象，而是清理 与当前进程绑定 的 fd 相关状态（如记录锁和通知机制），</span></span><br><span class="line"><span class="comment"> * 真正销毁文件对象并释放资源是在随后 __fput_sync 触发的 file_operations-&gt;release 中完成的，</span></span><br><span class="line"><span class="comment"> * 对于 socket 来说，TCP 连接的关闭（FIN 发送、状态机转换）发生在 release 阶段，而不是 flush 阶段</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">filp_flush</span><span class="params">(<span class="keyword">struct</span> file *filp, <span class="type">fl_owner_t</span> id)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> retval = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (CHECK_DATA_CORRUPTION(file_count(filp) == <span class="number">0</span>,</span><br><span class="line">			<span class="string">&quot;VFS: Close: file count is 0 (f_op=%ps)&quot;</span>,</span><br><span class="line">			filp-&gt;f_op)) &#123;</span><br><span class="line">		<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* socket_file_ops 没实现 flush，因此对于socket来说，这里不会走进去，</span></span><br><span class="line"><span class="comment">	 * 因此close(fd) 时，socket 在 filp_flush 阶段并不会被关闭 */</span></span><br><span class="line">	<span class="keyword">if</span> (filp-&gt;f_op-&gt;flush)</span><br><span class="line">		retval = filp-&gt;f_op-&gt;flush(filp, id);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (likely(!(filp-&gt;f_mode &amp; FMODE_PATH))) &#123;</span><br><span class="line">		<span class="comment">/* 旧版文件变更通知机制（inotify 的前身），同样绑定到 fd */</span></span><br><span class="line">		dnotify_flush(filp, id);</span><br><span class="line">		locks_remove_posix(filp, id);</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> retval;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p><code>__fput_sync</code>对文件对象的引用计数减1,如果引用计数为0,则返回true,继续调用<code>__fput</code>；若引用计数不为0,则返回false,直接返回。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * synchronous analog of fput(); for kernel threads that might be needed</span></span><br><span class="line"><span class="comment"> * in some umount() (and thus can&#x27;t use flush_delayed_fput() without</span></span><br><span class="line"><span class="comment"> * risking deadlocks), need to wait for completion of __fput() and know</span></span><br><span class="line"><span class="comment"> * for this specific struct file it won&#x27;t involve anything that would</span></span><br><span class="line"><span class="comment"> * need them.  Use only if you really need it - at the very least,</span></span><br><span class="line"><span class="comment"> * don&#x27;t blindly convert fput() by kernel thread to that.</span></span><br><span class="line"><span class="comment"> * 由 __do_sys_close 调用</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">void</span> __fput_sync(<span class="keyword">struct</span> file *file)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">if</span> (atomic_long_dec_and_test(&amp;file-&gt;f_count))</span><br><span class="line">		__fput(file);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>__fput</code> 才是 VFS 对象生命周期的结束，执行各种资源的释放操作。我们重点关注其中的<code>file-&gt;f_op-&gt;release</code>，socket的f_op是<code>socket_file_ops</code>，即<code>sock_close</code>。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* the real guts of fput() - releasing the last reference to file</span></span><br><span class="line"><span class="comment"> * 由 __fput_sync 调用，</span></span><br><span class="line"><span class="comment"> * __fput() 才是 VFS 对象生命周期的结束，执行各种资源的释放操作</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> __fput(<span class="keyword">struct</span> file *file)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">dentry</span> *<span class="title">dentry</span> =</span> file-&gt;f_path.dentry;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vfsmount</span> *<span class="title">mnt</span> =</span> file-&gt;f_path.mnt;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> file-&gt;f_inode;</span><br><span class="line">	<span class="type">fmode_t</span> mode = file-&gt;f_mode;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 这个 file 从未真正 open 成功过，直接释放结构体即可，一般肯定是open成功的 */</span></span><br><span class="line">	<span class="keyword">if</span> (unlikely(!(file-&gt;f_mode &amp; FMODE_OPENED)))</span><br><span class="line">		<span class="keyword">goto</span> out;</span><br><span class="line"></span><br><span class="line">	might_sleep();</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* edr的fanotify监控文件写关闭，其实就是利用的这里 */</span></span><br><span class="line">	fsnotify_close(file);</span><br><span class="line">	<span class="comment">/*</span></span><br><span class="line"><span class="comment">	 * The function eventpoll_release() should be the first called</span></span><br><span class="line"><span class="comment">	 * in the file cleanup chain.</span></span><br><span class="line"><span class="comment">	 * 将fd加入epoll后，会增加引用file的引用计数，导致close后，file并不会释放，</span></span><br><span class="line"><span class="comment">	 * 当epoll自己关闭或移除监听时，才会触发这里的 eventpoll_release，最终运行 tcp_close，</span></span><br><span class="line"><span class="comment">	 */</span></span><br><span class="line">	eventpoll_release(file);</span><br><span class="line">	locks_remove_file(file);</span><br><span class="line"></span><br><span class="line">	ima_file_free(file);</span><br><span class="line">	<span class="keyword">if</span> (unlikely(file-&gt;f_flags &amp; FASYNC)) &#123;</span><br><span class="line">		<span class="keyword">if</span> (file-&gt;f_op-&gt;fasync)</span><br><span class="line">			file-&gt;f_op-&gt;fasync(<span class="number">-1</span>, file, <span class="number">0</span>);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 对于套接字来说，f_op is socket_file_ops ，</span></span><br><span class="line"><span class="comment">	 * release is sock_close，这才是套接字真正关闭的地方 */</span></span><br><span class="line">	<span class="keyword">if</span> (file-&gt;f_op-&gt;release)</span><br><span class="line">		file-&gt;f_op-&gt;release(inode, file);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (unlikely(S_ISCHR(inode-&gt;i_mode) &amp;&amp; inode-&gt;i_cdev != <span class="literal">NULL</span> &amp;&amp;</span><br><span class="line">		     !(mode &amp; FMODE_PATH))) &#123;</span><br><span class="line">		cdev_put(inode-&gt;i_cdev);</span><br><span class="line">	&#125;</span><br><span class="line">	fops_put(file-&gt;f_op);</span><br><span class="line">	put_pid(file-&gt;f_owner.pid);</span><br><span class="line">	put_file_access(file);</span><br><span class="line">	<span class="comment">/* dentry引用减少 */</span></span><br><span class="line">	dput(dentry);</span><br><span class="line">	<span class="keyword">if</span> (unlikely(mode &amp; FMODE_NEED_UNMOUNT))</span><br><span class="line">		dissolve_on_fput(mnt);</span><br><span class="line">	<span class="comment">/* 挂载引用减少 */</span></span><br><span class="line">	mntput(mnt);</span><br><span class="line"></span><br><span class="line">out:</span><br><span class="line">	<span class="comment">/* file内存释放 */</span></span><br><span class="line">	file_free(file);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>在<code>sock_close</code>中，使用<code>SOCKET_I</code>根据<code>inode</code>找到对应的<code>socket</code>结构，然后调用<code>__sock_release</code>。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 __fput 调用 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">sock_close</span><span class="params">(<span class="keyword">struct</span> inode *inode, <span class="keyword">struct</span> file *filp)</span></span><br><span class="line">&#123;</span><br><span class="line">	__sock_release(SOCKET_I(inode), inode);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>__sock_release</code>标志着 VFS 文件对象与网络协议栈的分界点，在该函数中，VFS 不再参与资源管理，而是通过 proto_ops-&gt;release 将控制权交给具体协议实现。首先从socket结构的ops中取出协议操作集合结构，tcp是<code>inet_stream_ops</code>，udp是<code>inet_dgram_ops</code>。调用ops的release，一般是<code>inet_release</code>，这里是真正协议关闭入口。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 由 sock_close 、 sock_release 调用 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> __sock_release(<span class="keyword">struct</span> socket *sock, <span class="keyword">struct</span> inode *inode)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* inet_stream_ops 、 inet_dgram_ops */</span></span><br><span class="line">	<span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">proto_ops</span> *<span class="title">ops</span> =</span> READ_ONCE(sock-&gt;ops);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (ops) &#123;</span><br><span class="line">		<span class="class"><span class="keyword">struct</span> <span class="title">module</span> *<span class="title">owner</span> =</span> ops-&gt;owner;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (inode)</span><br><span class="line">			inode_lock(inode);</span><br><span class="line">		</span><br><span class="line">		<span class="comment">/* inet_release */</span></span><br><span class="line">		ops-&gt;release(sock);</span><br><span class="line"></span><br><span class="line">		sock-&gt;sk = <span class="literal">NULL</span>;</span><br><span class="line">		<span class="keyword">if</span> (inode)</span><br><span class="line">			inode_unlock(inode);</span><br><span class="line"></span><br><span class="line">		sock-&gt;ops = <span class="literal">NULL</span>;</span><br><span class="line">		module_put(owner);</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (sock-&gt;wq.fasync_list)</span><br><span class="line">		pr_err(<span class="string">&quot;%s: fasync list not empty!\n&quot;</span>, __func__);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!sock-&gt;file) &#123;</span><br><span class="line">		iput(SOCK_INODE(sock));</span><br><span class="line">		<span class="keyword">return</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	sock-&gt;file = <span class="literal">NULL</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在<code>inet_release</code>中，首先从socket上取出对应的sock结构，如果是用户态创建的socket，那就过下bpf。然后遍历socket加入的所有组播组，发送 IGMP Leave 报文，退出组播组。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> *	The peer socket should always be NULL (or else). When we call this</span></span><br><span class="line"><span class="comment"> *	function we are destroying the object and from then on nobody</span></span><br><span class="line"><span class="comment"> *	should refer to it.</span></span><br><span class="line"><span class="comment"> *  由 __sock_release 调用</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">inet_release</span><span class="params">(<span class="keyword">struct</span> socket *sock)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">/* 取出socket对应的sock结构 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">sock</span> *<span class="title">sk</span> =</span> sock-&gt;sk;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (sk) &#123;</span><br><span class="line">		<span class="type">long</span> timeout;</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* 如果是用户态创建的socket，过下bpf */</span></span><br><span class="line">		<span class="keyword">if</span> (!sk-&gt;sk_kern_sock)</span><br><span class="line">			BPF_CGROUP_RUN_PROG_INET_SOCK_RELEASE(sk);</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* Applications forget to leave groups before exiting */</span></span><br><span class="line">		ip_mc_drop_socket(sk);</span><br><span class="line"></span><br><span class="line">		<span class="comment">/* If linger is set, we don&#x27;t return until the close</span></span><br><span class="line"><span class="comment">		 * is complete.  Otherwise we return immediately. The</span></span><br><span class="line"><span class="comment">		 * actually closing is done the same either way.</span></span><br><span class="line"><span class="comment">		 *</span></span><br><span class="line"><span class="comment">		 * If the close is due to the process exiting, we never</span></span><br><span class="line"><span class="comment">		 * linger..</span></span><br><span class="line"><span class="comment">		 */</span></span><br><span class="line">		timeout = <span class="number">0</span>;</span><br><span class="line">		<span class="keyword">if</span> (sock_flag(sk, SOCK_LINGER) &amp;&amp;</span><br><span class="line">		    !(current-&gt;flags &amp; PF_EXITING))</span><br><span class="line">			timeout = sk-&gt;sk_lingertime;</span><br><span class="line">		</span><br><span class="line">		<span class="comment">/* tcp_close 、 udp_lib_close */</span></span><br><span class="line">		sk-&gt;sk_prot-&gt;close(sk, timeout);</span><br><span class="line">		sock-&gt;sk = <span class="literal">NULL</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line">EXPORT_SYMBOL(inet_release);</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/socket/" rel="tag"># socket</a>
+              <a href="/tags/%E7%BD%91%E7%BB%9C/" rel="tag"># 网络</a>
+              <a href="/tags/tcp%E7%9F%AD%E8%BF%9E/" rel="tag"># tcp短连</a>
+              <a href="/tags/close/" rel="tag"># close</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/01/28/preload_and_poor_inline_hook/" rel="prev" title="preload_and_poor_inline_hook">
+                  <i class="fa fa-angle-left"></i> preload_and_poor_inline_hook
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2025 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">wangzhixin</span>
+  </div>
+<div class="busuanzi-count">
+    <span class="post-meta-item" id="busuanzi_container_site_uv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-user"></i>
+      </span>
+      <span class="site-uv" title="总访客量">
+        <span id="busuanzi_value_site_uv"></span>
+      </span>
+    </span>
+    <span class="post-meta-item" id="busuanzi_container_site_pv">
+      <span class="post-meta-item-icon">
+        <i class="fa fa-eye"></i>
+      </span>
+      <span class="site-pv" title="总访问量">
+        <span id="busuanzi_value_site_pv"></span>
+      </span>
+    </span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/muse/" rel="noopener" target="_blank">NexT.Muse</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
